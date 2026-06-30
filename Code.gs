@@ -219,6 +219,108 @@ function seedHistory() {
   Logger.log('History done: ' + history.length + ' rows');
 }
 
+// Earlier seasons — run ADDITIVELY (these APPEND, they do not clear History first).
+// Run seedHistory() above FIRST (it clears + writes 25/26), then run these four,
+// in any order, to add 21/22 through 24/25 on top.
+// Source data is messier the further back you go — costs/yields are aggregated
+// per crop group where per-paddock figures weren't in the source files; this is
+// flagged in each row's notes rather than guessed.
+
+function appendHistory(ss, rows) {
+  const sh = ensureSheet(ss, 'History', HIST_COLS);
+  const last = sh.getLastRow();
+  sh.getRange(last+1, 1, rows.length, HIST_COLS.length)
+    .setValues(rows.map(r => HIST_COLS.map(c => r[c] != null ? r[c] : '')));
+  SpreadsheetApp.flush();
+  Logger.log('Appended ' + rows.length + ' rows for ' + (rows[0] && rows[0].year));
+}
+
+function seedHistory22() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const y = '2021/22';
+  const rows = [
+    {id:'h22-1',year:y,paddock:'Oaks 2',crop:'Fodder Beet',ha:5.41,yieldBudget:22570,yieldActual:null,notes:'Seed $380/ha, Chem $1130/ha, Fert $600/ha (ops not itemised). Yield is season avg across 12 beet paddocks — source did not break out per-paddock yield.'},
+    {id:'h22-2',year:y,paddock:'Horsfall 2',crop:'Fodder Beet',ha:4.24,yieldBudget:22570,yieldActual:null,notes:'Seed $380/ha, Chem $1130/ha, Fert $600/ha. Yield = season avg, not paddock-specific.'},
+    {id:'h22-3',year:y,paddock:'Pump 1',crop:'Fodder Beet',ha:3.63,yieldBudget:22570,yieldActual:null,notes:'Seed $380/ha, Chem $1130/ha, Fert $600/ha. Yield = season avg, not paddock-specific.'},
+    {id:'h22-4',year:y,paddock:'Pump 3',crop:'Fodder Beet',ha:3.86,yieldBudget:22570,yieldActual:null,notes:'Seed $380/ha, Chem $1130/ha, Fert $600/ha. Yield = season avg, not paddock-specific.'},
+    {id:'h22-5',year:y,paddock:'Top Walnut',crop:'Fodder Beet',ha:4.95,yieldBudget:22570,yieldActual:null,notes:'Seed $380/ha, Chem $1130/ha, Fert $600/ha. Yield = season avg, not paddock-specific.'},
+    {id:'h22-6',year:y,paddock:'Two Tanks 1',crop:'Fodder Beet',ha:4.67,yieldBudget:22570,yieldActual:null,notes:'Seed $380/ha, Chem $1130/ha, Fert $600/ha. Yield = season avg, not paddock-specific.'},
+    {id:'h22-7',year:y,paddock:'Gum 2',crop:'Fodder Beet',ha:4.5,yieldBudget:22570,yieldActual:null,notes:'Seed $380/ha, Chem $1130/ha, Fert $600/ha. Yield = season avg, not paddock-specific.'},
+    {id:'h22-8',year:y,paddock:'Top Stump',crop:'Fodder Beet',ha:4.75,yieldBudget:22570,yieldActual:null,notes:'Seed $380/ha, Chem $1130/ha, Fert $600/ha. Yield = season avg, not paddock-specific.'},
+    {id:'h22-9',year:y,paddock:'Georges 1',crop:'Fodder Beet',ha:4.32,yieldBudget:22570,yieldActual:null,notes:'Seed $380/ha, Chem $1130/ha, Fert $600/ha. Yield = season avg, not paddock-specific.'},
+    {id:'h22-10',year:y,paddock:'Sowbie 1',crop:'Fodder Beet',ha:4.68,yieldBudget:22570,yieldActual:null,notes:'Seed $380/ha, Chem $1130/ha, Fert $600/ha. Yield = season avg, not paddock-specific.'},
+    {id:'h22-11',year:y,paddock:'Left Deans',crop:'Fodder Beet',ha:4,yieldBudget:22570,yieldActual:null,notes:'Seed $380/ha, Chem $1130/ha, Fert $600/ha. Yield = season avg, not paddock-specific.'},
+    {id:'h22-12',year:y,paddock:'Nelson Bays',crop:'Fodder Beet',ha:8.6,yieldBudget:22570,yieldActual:null,notes:'Seed $380/ha, Chem $1130/ha, Fert $600/ha. Group total 12 paddocks, 57.61ha, $155,899.68.'},
+    {id:'h22-13',year:y,paddock:'(8 paddocks — per-paddock ha not in source)',crop:'Swedes',ha:36.17,yieldBudget:17906,yieldActual:null,notes:'Paddocks: Bondis, Mothering Up, Cattle Yards 1, Oaks 1 (cost anomaly in source — flagged not corrected), Oscars, Caldwell Yards, Boots, North Otago. Seed $225/ha, Chem $425/ha, Fert $480/ha. Total $98,187.48. Yield avg of 5 matched paddocks only.'},
+    {id:'h22-14',year:y,paddock:'(3 paddocks — per-paddock ha not in source)',crop:'Kale',ha:10.62,yieldBudget:null,yieldActual:null,notes:'Paddocks: Tonys, Big Bill, Robs. Seed $150/ha, Chem $621/ha, Fert $480/ha. Total $16,269.84. No yield figure in source.'},
+    {id:'h22-15',year:y,paddock:'Bottom 60',crop:'Maize',ha:10.42,yieldBudget:null,yieldActual:null,notes:'Seed $1,050/ha, Chem $345/ha, Fert $700/ha. Total $26,623.10. No yield figure in source.'},
+    {id:'h22-16',year:y,paddock:'(Season Summary)',crop:'All',ha:null,yieldBudget:null,yieldActual:null,notes:'Winter feed programme total $237,005.66. Pasture renewal 177.13ha $135,451.50. Deer stock demand (partial, not all classes priced): 865,099.5kg silage + 580,817kg beet + 300,140kg swedes. Separate winter-2021 budget on file: total crop demand 1,997,770kg, silage demand 855,208kg.'},
+  ];
+  appendHistory(ss, rows);
+}
+
+function seedHistory23() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const y = '2022/23';
+  const rows = [
+    {id:'h23-1',year:y,paddock:'Pump 1',crop:'Fodder Beet',ha:3.63,yieldBudget:null,yieldActual:null,notes:'Seed $400/ha, Chem $1200/ha, Fert $650/ha, Ops $660/ha. No yield or stock-requirement data found in source for this season.'},
+    {id:'h23-2',year:y,paddock:'Andys',crop:'Fodder Beet',ha:3.74,yieldBudget:null,yieldActual:null,notes:'Seed $400/ha, Chem $1200/ha, Fert $650/ha, Ops $660/ha.'},
+    {id:'h23-3',year:y,paddock:'Pump 2',crop:'Fodder Beet',ha:4.0,yieldBudget:null,yieldActual:null,notes:'Seed $400/ha, Chem $1200/ha, Fert $650/ha, Ops $660/ha. Group total 11.37ha, $22,523.40.'},
+    {id:'h23-4',year:y,paddock:'Plantation',crop:'Kale',ha:10.67,yieldBudget:null,yieldActual:null,notes:'Seed $120/ha, Chem $500/ha, Fert $500/ha. Part of combined Swedes/Kale group, 48.92ha, $83,223.75 total.'},
+    {id:'h23-5',year:y,paddock:'(6 paddocks — per-paddock ha not in source)',crop:'Swedes',ha:38.25,yieldBudget:null,yieldActual:null,notes:'Paddocks: Two Tanks 1, Top Stump, Gum 1, Mothering Up, Bondis, North Otago (drill date corrupted in source), Nelson Bays. Seed $235/ha, Chem $500/ha, Fert $500/ha. Remainder of the 48.92ha Swedes/Kale group after Plantation.'},
+    {id:'h23-6',year:y,paddock:'(4 paddocks — per-paddock ha not in source)',crop:'Maize',ha:18.19,yieldBudget:null,yieldActual:null,notes:'Paddocks: Oaks 2, Top Walnut, Charlies, Pump 3. Seed $500/ha, Chem $800/ha, Fert $800/ha. Total $49,879.80.'},
+    {id:'h23-7',year:y,paddock:'(Season Summary)',crop:'All',ha:null,yieldBudget:null,yieldActual:null,notes:'Winter Feed total 78.48ha $155,626.95. Pasture renewal 131.37ha $84,831.33. No yield file or stock-requirement file found for this season — costs only.'},
+  ];
+  appendHistory(ss, rows);
+}
+
+function seedHistory24() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const y = '2023/24';
+  const rows = [
+    {id:'h24-1',year:y,paddock:'Pump 1',crop:'Fodder Beet',ha:3.63,yieldBudget:20600,yieldActual:null,notes:'Yield is FRESH WEIGHT (20.6 t/ha from source), not DM — no DM% given to convert. No per-ha cost breakdown found for this season, only the feed-allocation tool.'},
+    {id:'h24-2',year:y,paddock:'Pump 2',crop:'Fodder Beet',ha:4.06,yieldBudget:24400,yieldActual:null,notes:'Yield is fresh weight (24.4 t/ha). No cost data found.'},
+    {id:'h24-3',year:y,paddock:'Andys',crop:'Fodder Beet',ha:3.74,yieldBudget:20600,yieldActual:null,notes:'Yield is fresh weight (20.6 t/ha). No cost data found.'},
+    {id:'h24-4',year:y,paddock:'Two Tanks 1',crop:'Swedes',ha:4.67,yieldBudget:17500,yieldActual:null,notes:'Yield is fresh weight (17.5 t/ha). No cost data found.'},
+    {id:'h24-5',year:y,paddock:'Top Stump',crop:'Swedes',ha:4.8,yieldBudget:17000,yieldActual:null,notes:'Yield is fresh weight (17.0 t/ha). No cost data found.'},
+    {id:'h24-6',year:y,paddock:'Gum 1',crop:'Swedes',ha:4.4,yieldBudget:17500,yieldActual:null,notes:'Yield is fresh weight (17.5 t/ha). No cost data found.'},
+    {id:'h24-7',year:y,paddock:'Mothering Up',crop:'Swedes',ha:5.68,yieldBudget:15700,yieldActual:null,notes:'Yield is fresh weight (15.7 t/ha). No cost data found.'},
+    {id:'h24-8',year:y,paddock:'Bondis',crop:'Swedes',ha:3.5,yieldBudget:15700,yieldActual:null,notes:'Yield is fresh weight (15.7 t/ha). No cost data found.'},
+    {id:'h24-9',year:y,paddock:'North Otago',crop:'Swedes',ha:6.6,yieldBudget:14600,yieldActual:null,notes:'Yield is fresh weight (14.6 t/ha). No cost data found.'},
+    {id:'h24-10',year:y,paddock:'Nelson Bays',crop:'Swedes',ha:8.6,yieldBudget:14600,yieldActual:null,notes:'Yield is fresh weight (14.6 t/ha). No cost data found.'},
+    {id:'h24-11',year:y,paddock:'Big Bills',crop:'Kale',ha:7.16,yieldBudget:6350,yieldActual:null,notes:'Yield is fresh weight (6.35 t/ha) — low relative to other seasons, check against source. No cost data found.'},
+    {id:'h24-12',year:y,paddock:'Robs',crop:'Kale',ha:3.59,yieldBudget:6350,yieldActual:null,notes:'Yield is fresh weight (6.35 t/ha). No cost data found.'},
+    {id:'h24-13',year:y,paddock:'(4 paddocks — per-paddock ha not in source)',crop:'Rape',ha:22.54,yieldBudget:5170,yieldActual:null,notes:'Winterstar. Paddocks: Westcoast, Marlborough, Johnsons, Pigsty. Yield is fresh weight avg (5.17 t/ha). Per-paddock ha not in source. No cost data found.'},
+    {id:'h24-14',year:y,paddock:'Oregons',crop:'Rape',ha:7.85,yieldBudget:3270,yieldActual:null,notes:'Turnips. Yield is fresh weight (3.27 t/ha). No cost data found.'},
+    {id:'h24-15',year:y,paddock:'Golden Willows 5',crop:'Rape',ha:4.9,yieldBudget:3270,yieldActual:null,notes:'Turnips. Yield is fresh weight (3.27 t/ha). No cost data found.'},
+    {id:'h24-16',year:y,paddock:'(Stock Requirements Summary)',crop:'Stock',ha:null,yieldBudget:null,yieldActual:null,notes:'MA/old stags 2,194hd @4.7kgDM/d; R3 Stags 828hd @4.2; R3 B11 59hd @5.5; R2 Stags 984hd @3.5; R2 B11 73hd @4.0; R1 weaners 2,157hd @2.3; MA Hinds 516hd @3.5 (kale); R2 comm hinds 219hd; MA comm 260hd; Com Hinds 450hd; B11 Hinds 177hd @4.7; B11 R2s 81hd @4.4; R1 Heifers 83hd @7.0; MA cows 140hd; MA ewes 93hd @1.5. Period 1 Jun-1 Oct, 120 days.'},
+    {id:'h24-17',year:y,paddock:'(Season Summary)',crop:'All',ha:null,yieldBudget:null,yieldActual:null,notes:'Total demand 27,403.8 kgDM/day, 3,288,456 kgDM over 120 days. Total supply 3,912,621.28 kgDM. Surplus +624,165.28 kgDM. No costed cropping plan found for this season.'},
+  ];
+  appendHistory(ss, rows);
+}
+
+function seedHistory25() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const y = '2024/25';
+  const rows = [
+    {id:'h25-1',year:y,paddock:'Thames Valley',crop:'Swedes',ha:7.14,yieldBudget:14600,yieldActual:null,notes:'Seed $195/ha, Chem $500/ha, Fert $450/ha, Ops $280/ha. Total $10,174.50. Yield units unconfirmed DM vs fresh — flagged, not assumed.'},
+    {id:'h25-2',year:y,paddock:'East Coast',crop:'Swedes',ha:6.61,yieldBudget:14600,yieldActual:null,notes:'Seed $195/ha, Chem $500/ha, Fert $450/ha, Ops $280/ha. Total $9,419.25.'},
+    {id:'h25-3',year:y,paddock:'Poverty Bay',crop:'Swedes',ha:5.5,yieldBudget:14600,yieldActual:null,notes:'Seed $195/ha, Chem $500/ha, Fert $450/ha, Ops $280/ha. Total $7,837.50.'},
+    {id:'h25-4',year:y,paddock:'Bottom 60',crop:'Swedes',ha:10.42,yieldBudget:14600,yieldActual:null,notes:'Seed $195/ha, Chem $500/ha, Fert $450/ha, Ops $280/ha. Total $14,848.50.'},
+    {id:'h25-5',year:y,paddock:'Kingcountry',crop:'Swedes',ha:5.0,yieldBudget:14600,yieldActual:null,notes:'Seed $195/ha, Chem $500/ha, Fert $450/ha, Ops $280/ha. Total $7,145. Group total 455,563.8kg usable.'},
+    {id:'h25-6',year:y,paddock:'North Otago',crop:'Kale',ha:6.68,yieldBudget:12600,yieldActual:null,notes:'Seed $150/ha, Chem $500/ha, Fert $450/ha, Ops $354/ha. Source Kale subtotal (50.07ha) appears to be a copy-paste error duplicating Swedes subtotal — true area is sum of the 2 Kale paddocks (15.4ha), used here.'},
+    {id:'h25-7',year:y,paddock:'Nelson Bays',crop:'Kale',ha:8.72,yieldBudget:12600,yieldActual:null,notes:'Seed $150/ha, Chem $500/ha, Fert $450/ha, Ops $354/ha. Group total 174,636kg.'},
+    {id:'h25-8',year:y,paddock:'Bottom Stump',crop:'Fodder Beet',ha:4.86,yieldBudget:19000,yieldActual:null,notes:'Seed $400/ha, Chem $1200/ha, Fert $650/ha, Ops $490/ha.'},
+    {id:'h25-9',year:y,paddock:'Top Johns',crop:'Fodder Beet',ha:4.6,yieldBudget:19000,yieldActual:null,notes:'Seed $400/ha, Chem $1200/ha, Fert $650/ha, Ops $490/ha. Group total 161,766kg.'},
+    {id:'h25-10',year:y,paddock:'Bottom Oaks',crop:'Maize',ha:3.84,yieldBudget:19000,yieldActual:null,notes:'Seed $500/ha, Chem $800/ha, Fert $800/ha (ops not split).'},
+    {id:'h25-11',year:y,paddock:'Oaks 3',crop:'Maize',ha:6.32,yieldBudget:19000,yieldActual:null,notes:'Seed $500/ha, Chem $800/ha, Fert $800/ha.'},
+    {id:'h25-12',year:y,paddock:'Oaks 4',crop:'Maize',ha:5.41,yieldBudget:19000,yieldActual:null,notes:'Seed $500/ha, Chem $800/ha, Fert $800/ha. Group total 295,830kg.'},
+    {id:'h25-13',year:y,paddock:'(Stock Requirements Summary)',crop:'Stock',ha:null,yieldBudget:null,yieldActual:null,notes:'Barn stags 1,180hd @4.5 (Jun-Jul,60d); MA/old stags 1,115hd @4.7 + 2,295hd @5.0 (May, Aug-Oct); Sires 45hd @4.7; R3 Stags 458hd @4.2 (swedes); R3 Stags Elite 400hd @4.2; R3 B11 59hd @5.5; R2 Stags 918hd @3.5; R2 B11 73hd @4.0; R1 weaners 1,080hd @2.3 (winterstar+balage); Comm Weaners 776hd @2.5 (fodder beet+lucerne silage); MA Hinds 516hd @2.5/2.8 (silage then kale); Milking Hinds 200hd @2.6; Com Hinds 750-250hd various periods @2.6; B11 Hinds 177hd @4.7; B11 R2s 81hd @4.4; R1 Heifers 83hd @7; MA cows 100hd @5 (head count conflict in source — 679 also appears elsewhere, flagged not resolved); R1 Finishing cattle 270hd @8; Calving Cows 400hd (no rate given in source).'},
+    {id:'h25-14',year:y,paddock:'(Season Summary)',crop:'All',ha:null,yieldBudget:null,yieldActual:null,notes:'Programme total $359,756.08 incl fert / $283,571.56 excl fert (crop+maize $140,479.55/$99,338.05, pasture renewal $139,608.34/$116,961.70). Required feed 3,917,624kgDM. Total supply 4,239,640.95kgDM (Swedes 455,563.8, Fodder Beet 161,766, Kale 174,636, Winterstar 422,825, Pasture 1,366,625, Maize 285,225.15, Lucerne 300,000, Bulk silage 700,000, plus old silage/balage/hay/purchased). Surplus +322,016.95kgDM.'},
+  ];
+  appendHistory(ss, rows);
+}
+
 // DEPRECATED — replaced by the four functions above
 function seedData() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
