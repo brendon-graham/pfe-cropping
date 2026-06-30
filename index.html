@@ -25,13 +25,26 @@
 body { font-family: system-ui, sans-serif; font-size: 14px; background: var(--straw); color: var(--text); }
 header {
   background: var(--soil); color: #fff; height: var(--header-h);
-  display: flex; align-items: center; padding: 0 20px; gap: 16px; position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; padding: 0 16px; gap: 12px; position: sticky; top: 0; z-index: 100;
 }
-header h1 { font-size: 18px; font-weight: 700; letter-spacing: -.5px; }
-header .sub { font-size: 11px; color: #9E9E9E; }
-header .spacer { flex: 1; }
+header h1 { font-size: 17px; font-weight: 700; letter-spacing: -.5px; white-space: nowrap; }
+.year-sel {
+  background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25);
+  color: #fff; border-radius: 6px; padding: 4px 8px; font-size: 14px; font-weight: 600;
+  cursor: pointer; appearance: none; -webkit-appearance: none; padding-right: 24px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23fff'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+}
+.year-sel option { background: #1B3A1B; color: #fff; }
+.btn-new-yr {
+  background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25);
+  color: rgba(255,255,255,.85); border-radius: 6px; padding: 4px 10px; font-size: 12px;
+  cursor: pointer; white-space: nowrap;
+}
+.btn-new-yr:hover { background: rgba(255,255,255,.22); color: #fff; }
+.spacer { flex: 1; }
 #sync-pill {
-  font-size: 11px; padding: 3px 10px; border-radius: 20px; background: #333; cursor: pointer;
+  font-size: 11px; padding: 3px 10px; border-radius: 20px; background: #333; cursor: pointer; white-space: nowrap;
 }
 #sync-pill.ok { background: var(--ok); }
 #sync-pill.warn { background: var(--warn); }
@@ -66,7 +79,7 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { background: var(--soil); color: #fff; padding: 8px 10px; text-align: left; font-weight: 600; font-size: 12px; white-space: nowrap; }
 td { padding: 7px 10px; border-bottom: 1px solid #F0F0F0; vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
-tr:hover td { background: #FAFAFA; }
+tr.data-row:hover td { background: #FAFAFA; }
 .section-row td { background: #F5F5F5; font-weight: 600; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
 .total-row td { background: var(--soil); color: #fff; font-weight: 700; }
 
@@ -90,17 +103,17 @@ td input.num { text-align: right; }
 .add-row button { background: none; border: none; color: var(--leaf); cursor: pointer; font-size: 13px; font-weight: 600; }
 .add-row button:hover { text-decoration: underline; }
 
-/* Feed budget bars */
+/* Feed budget */
 .fb-section { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
 @media (max-width: 900px) { .fb-section { grid-template-columns: 1fr; } }
-.fb-box { background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
-.fb-box-hdr { background: var(--soil); color: #fff; padding: 10px 14px; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 13px; display: flex; justify-content: space-between; }
 .fb-summary { background: var(--card); border-radius: 8px; border: 1px solid var(--border); padding: 16px; margin-bottom: 16px; display: flex; gap: 32px; align-items: center; flex-wrap: wrap; }
 .fb-bar-wrap { flex: 1; min-width: 200px; }
 .fb-bar { height: 20px; background: #EEE; border-radius: 10px; overflow: hidden; }
 .fb-bar-fill { height: 100%; border-radius: 10px; background: var(--ok); transition: width .3s; }
 .fb-bar-fill.over { background: var(--warn); }
-.flags-box { background: var(--card); border-radius: 8px; border: 1px solid var(--border); padding: 0; margin-bottom: 16px; overflow: hidden; }
+
+/* Flags */
+.flags-box { background: var(--card); border-radius: 8px; border: 1px solid var(--border); margin-bottom: 16px; overflow: hidden; }
 .flags-box-hdr { background: var(--soil); color: #fff; padding: 10px 14px; font-weight: 700; font-size: 13px; }
 .flag-item { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: flex-start; }
 .flag-item:last-child { border-bottom: none; }
@@ -114,8 +127,7 @@ td input.num { text-align: right; }
 
 /* Toolbar */
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
-.toolbar .spacer { flex: 1; }
-#sync-log { font-size: 11px; color: var(--muted); }
+#sync-log { font-size: 11px; color: rgba(255,255,255,.6); max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Tag chips */
 .tag { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 600; }
@@ -139,15 +151,20 @@ td input.num { text-align: right; }
 }
 .form-group textarea { min-height: 160px; resize: vertical; font-family: monospace; font-size: 12px; }
 .section-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid var(--lime); display: flex; justify-content: space-between; align-items: center; }
+
+/* History comparison */
+.yr-row { cursor: pointer; }
+.yr-row:hover td { background: #F0F7EE !important; }
+.yr-badge { display: inline-block; background: var(--soil); color: #fff; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 700; }
+.yr-active .yr-badge { background: var(--lime); color: var(--soil); }
 </style>
 </head>
 <body>
 
 <header>
-  <div>
-    <h1>PFE Cropping</h1>
-    <div class="sub" id="hdr-sub">Loading...</div>
-  </div>
+  <h1>PFE Cropping</h1>
+  <select id="year-sel" class="year-sel" onchange="changeYear(this.value)"></select>
+  <button class="btn-new-yr" onclick="newYear()">+ Season</button>
   <div class="spacer"></div>
   <span id="sync-log"></span>
   <div id="sync-pill" onclick="manualSync()">Offline</div>
@@ -159,7 +176,7 @@ td input.num { text-align: right; }
   <button onclick="showTab('stock')">Stock Req</button>
   <button onclick="showTab('feed')">Feed Budget</button>
   <button onclick="showTab('financial')">Financial</button>
-  <button onclick="showTab('history')">History</button>
+  <button onclick="showTab('history')">All Seasons</button>
   <button onclick="showTab('ai')">AI Advisor</button>
   <button onclick="showTab('settings')">Settings</button>
 </nav>
@@ -177,13 +194,13 @@ td input.num { text-align: right; }
 
 <script>
 // -- CONSTANTS --
-const APP_VER = '2.0';
+const APP_VER = '2.1';
 const NS = 'crop2_';
 const YEAR = '2026/27';
+const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbxaPkRHrWqjfqgMCaV-s-uZYSvVIFgOyC5IpKg5J6_CLv_5gEkP7_SukyHOYhTvEYI2jQ/exec';
 
 const CROPS = ['Kale','Swedes','Fodder Beet','Lifting Beet','Maize','Rape','Triticale','Clover','Other'];
 
-// Gross margin templates ($/ha defaults from spreadsheet)
 const GM = {
   'Kale':        { yieldKgHA: 12000, seedHA: 147,  chemHA: 435,  fertHA: 566, opsHA: 295 },
   'Swedes':      { yieldKgHA: 14000, seedHA: 240,  chemHA: 543,  fertHA: 535, opsHA: 395 },
@@ -202,23 +219,57 @@ const CROP_TAG = {
 };
 
 // -- STATE --
-let cropPlan   = [];  // { id, paddock, crop, ha, drillDate, yieldKgHA, seedHA, chemHA, fertHA, opsHA, notes }
-let stockReq   = [];  // { id, cls, species, headPrev, headCurr, kgDMday, period, days, feedSource, notes }
-let supplements = []; // { id, name, type, kgDM, costPerKgDM, notes }
-let history    = [];  // { id, year, paddock, crop, ha, yieldBudget, yieldActual, notes }
-let aiNotes    = '';
-let settings   = { scriptUrl: '', year: YEAR, disconnected: false };
-let lastTs     = 0;
+let cropPlan    = [];
+let stockReq    = [];
+let supplements = [];
+let aiNotes     = '';
+let settings    = { scriptUrl: '', disconnected: false };
+let activeYear  = YEAR;
+let lastTs      = 0;
 let syncPending = false;
-let pollTimer  = null;
-let activeTab  = 'dashboard';
+let pollTimer   = null;
+let activeTab   = 'dashboard';
+
+// -- YEAR HELPERS --
+function getYears() {
+  const s = new Set([YEAR]);
+  cropPlan.forEach(c => s.add(c.year || YEAR));
+  stockReq.forEach(r => s.add(r.year || YEAR));
+  supplements.forEach(x => s.add(x.year || YEAR));
+  return [...s].sort().reverse();
+}
+
+function yearCrop()  { return cropPlan.filter(c    => (c.year    || YEAR) === activeYear); }
+function yearStock() { return stockReq.filter(r    => (r.year    || YEAR) === activeYear); }
+function yearSupps() { return supplements.filter(x => (x.year   || YEAR) === activeYear); }
+
+function changeYear(y) {
+  activeYear = y;
+  settings.year = y;
+  localStorage.setItem(NS+'settings', JSON.stringify(settings));
+  updateYearSel();
+  renderTab(activeTab);
+}
+
+function newYear() {
+  const y = prompt('New season label (e.g. 2027/28):');
+  if (!y || !y.trim()) return;
+  const yr = y.trim();
+  if (getYears().includes(yr)) { alert('Season ' + yr + ' already exists — select it from the dropdown.'); return; }
+  changeYear(yr);
+}
+
+function updateYearSel() {
+  const sel = document.getElementById('year-sel');
+  if (!sel) return;
+  sel.innerHTML = getYears().map(y => `<option${y===activeYear?' selected':''}>${y}</option>`).join('');
+}
 
 // -- PERSISTENCE --
 function save() {
   localStorage.setItem(NS+'crop', JSON.stringify(cropPlan));
   localStorage.setItem(NS+'stock', JSON.stringify(stockReq));
   localStorage.setItem(NS+'supps', JSON.stringify(supplements));
-  localStorage.setItem(NS+'history', JSON.stringify(history));
   localStorage.setItem(NS+'ai', aiNotes);
   localStorage.setItem(NS+'settings', JSON.stringify(settings));
   schedulePush();
@@ -228,12 +279,16 @@ function load() {
   cropPlan    = JSON.parse(localStorage.getItem(NS+'crop')     || '[]');
   stockReq    = JSON.parse(localStorage.getItem(NS+'stock')    || '[]');
   supplements = JSON.parse(localStorage.getItem(NS+'supps')    || '[]');
-  history     = JSON.parse(localStorage.getItem(NS+'history')  || '[]');
   aiNotes     = localStorage.getItem(NS+'ai') || '';
   settings    = JSON.parse(localStorage.getItem(NS+'settings') || '{}');
-  settings.year = settings.year || YEAR;
-  settings.scriptUrl = settings.scriptUrl || 'https://script.google.com/macros/s/AKfycbxaPkRHrWqjfqgMCaV-s-uZYSvVIFgOyC5IpKg5J6_CLv_5gEkP7_SukyHOYhTvEYI2jQ/exec';
-  lastTs      = Number(localStorage.getItem(NS+'lastTs') || 0);
+  settings.scriptUrl  = settings.scriptUrl  || DEFAULT_URL;
+  settings.disconnected = settings.disconnected || false;
+  activeYear  = settings.year || YEAR;
+  // Migrate rows that predate the year field
+  cropPlan.forEach(c    => { if (!c.year) c.year = YEAR; });
+  stockReq.forEach(r    => { if (!r.year) r.year = YEAR; });
+  supplements.forEach(x => { if (!x.year) x.year = YEAR; });
+  lastTs = Number(localStorage.getItem(NS+'lastTs') || 0);
 }
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
@@ -242,35 +297,15 @@ function fmt$(v) { return '$' + Math.round(n(v)).toLocaleString(); }
 function fmtT(v) { return Math.round(n(v)/1000).toLocaleString() + 't'; }
 function fmtDM(v) { return Math.round(n(v)).toLocaleString() + ' kg'; }
 
-// -- COMPUTED TOTALS --
-function totalDemand() {
-  return stockReq.reduce((s, r) => s + n(r.headCurr) * n(r.kgDMday) * n(r.days), 0);
-}
-
-function cropSupply() {
-  return cropPlan.reduce((s, c) => {
-    return s + n(c.ha) * n(c.yieldKgHA) * 0.90;
-  }, 0);
-}
-
-function suppSupply() {
-  return supplements.reduce((s, x) => s + n(x.kgDM), 0);
-}
-
-function totalSupply() { return cropSupply() + suppSupply(); }
-function surplus() { return totalSupply() - totalDemand(); }
-
-function totalCropCost() {
-  return cropPlan.reduce((s, c) => {
-    return s + n(c.ha) * (n(c.seedHA) + n(c.chemHA) + n(c.fertHA) + n(c.opsHA));
-  }, 0);
-}
-
-function totalSuppCost() {
-  return supplements.reduce((s, x) => s + n(x.kgDM) * n(x.costPerKgDM), 0);
-}
-
-function totalHa() { return cropPlan.reduce((s, c) => s + n(c.ha), 0); }
+// -- COMPUTED TOTALS (operate on active year only) --
+function totalDemand()   { return yearStock().reduce((s,r) => s + n(r.headCurr)*n(r.kgDMday)*n(r.days), 0); }
+function cropSupply()    { return yearCrop().reduce((s,c)  => s + n(c.ha)*n(c.yieldKgHA)*0.90, 0); }
+function suppSupply()    { return yearSupps().reduce((s,x) => s + n(x.kgDM), 0); }
+function totalSupply()   { return cropSupply() + suppSupply(); }
+function surplus()       { return totalSupply() - totalDemand(); }
+function totalCropCost() { return yearCrop().reduce((s,c)  => s + n(c.ha)*(n(c.seedHA)+n(c.chemHA)+n(c.fertHA)+n(c.opsHA)), 0); }
+function totalSuppCost() { return yearSupps().reduce((s,x) => s + n(x.kgDM)*n(x.costPerKgDM), 0); }
+function totalHa()       { return yearCrop().reduce((s,c)  => s + n(c.ha), 0); }
 
 // -- TABS --
 function showTab(name) {
@@ -295,7 +330,7 @@ function renderTab(name) {
 }
 
 function renderAll() {
-  document.getElementById('hdr-sub').textContent = settings.year + ' · ' + APP_VER;
+  updateYearSel();
   renderTab(activeTab);
 }
 
@@ -304,15 +339,16 @@ function renderDashboard() {
   const dem = totalDemand();
   const sup = totalSupply();
   const sur = surplus();
-  const pct = dem > 0 ? Math.min(100, Math.round(sup / dem * 100)) : 0;
+  const pct = dem > 0 ? Math.min(100, Math.round(sup/dem*100)) : 0;
   const flags = buildFlags();
+  const cp = yearCrop();
 
   document.getElementById('tab-dashboard').innerHTML = `
     <div class="cards">
       <div class="card">
         <div class="label">Total Crop Ha</div>
         <div class="value">${totalHa().toFixed(1)}</div>
-        <div class="sub">${cropPlan.length} paddocks</div>
+        <div class="sub">${cp.length} paddocks</div>
       </div>
       <div class="card">
         <div class="label">DM Supply</div>
@@ -332,13 +368,13 @@ function renderDashboard() {
       <div class="card">
         <div class="label">Programme Cost</div>
         <div class="value">${fmt$(totalCropCost() + totalSuppCost())}</div>
-        <div class="sub">${settings.year} budget</div>
+        <div class="sub">${activeYear} budget</div>
       </div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;" class="dash-lower">
       <div>
-        <div class="section-title" style="font-size:14px;">Crop Programme — ${settings.year}</div>
+        <div class="section-title" style="font-size:14px;">Crop Programme — ${activeYear}</div>
         <div class="tbl-wrap">
           <table>
             <thead><tr><th>Crop</th><th style="text-align:right">Ha</th><th style="text-align:right">DM Supply</th><th style="text-align:right">Cost</th></tr></thead>
@@ -363,7 +399,7 @@ function renderDashboard() {
 
 function renderCropSummaryRows() {
   const byType = {};
-  cropPlan.forEach(c => {
+  yearCrop().forEach(c => {
     if (!byType[c.crop]) byType[c.crop] = { ha: 0, dm: 0, cost: 0 };
     byType[c.crop].ha   += n(c.ha);
     byType[c.crop].dm   += n(c.ha) * n(c.yieldKgHA) * 0.9;
@@ -382,22 +418,24 @@ function renderCropSummaryRows() {
 function buildFlags() {
   const flags = [];
   const sur = surplus();
+  const cp = yearCrop();
+  const sr = yearStock();
   if (sur < 0) flags.push({ level:'red', title:'Feed Deficit', desc:`${fmtT(Math.abs(sur))} DM shortfall. Add supplements or increase crop area.` });
   else if (sur < 200000) flags.push({ level:'amber', title:'Tight Feed Margin', desc:`Only ${fmtT(sur)} surplus. Limited buffer for poor yields.` });
-  cropPlan.forEach(c => {
+  cp.forEach(c => {
     if (n(c.yieldKgHA) < (GM[c.crop]?.yieldKgHA || 10000) * 0.75) {
-      flags.push({ level:'amber', title:`Low yield budget — ${c.paddock}`, desc:`${c.crop} budgeted at ${n(c.yieldKgHA).toLocaleString()} kg/ha vs ${GM[c.crop]?.yieldKgHA?.toLocaleString()} kg/ha typical.` });
+      flags.push({ level:'amber', title:`Low yield budget — ${c.paddock}`, desc:`${c.crop} budgeted at ${n(c.yieldKgHA).toLocaleString()} kgDM/ha vs ${GM[c.crop]?.yieldKgHA?.toLocaleString()} typical.` });
     }
   });
-  if (totalDemand() === 0) flags.push({ level:'amber', title:'No stock entered', desc:'Add stock classes in Stock Req to calculate feed demand.' });
-  if (cropPlan.length === 0) flags.push({ level:'amber', title:'No crop plan entered', desc:'Add paddocks in Crop Plan to calculate feed supply.' });
+  if (sr.length === 0) flags.push({ level:'amber', title:'No stock entered', desc:'Add stock classes in Stock Req to calculate feed demand.' });
+  if (cp.length === 0) flags.push({ level:'amber', title:'No crop plan entered', desc:'Add paddocks in Crop Plan to calculate feed supply.' });
   return flags;
 }
 
 // -- CROP PLAN --
 function renderCrop() {
   const byType = {};
-  cropPlan.forEach(c => {
+  yearCrop().forEach(c => {
     if (!byType[c.crop]) byType[c.crop] = [];
     byType[c.crop].push(c);
   });
@@ -406,22 +444,22 @@ function renderCrop() {
   let rows = '';
 
   Object.entries(byType).forEach(([crop, rows_]) => {
-    const totHa = rows_.reduce((s,c)=>s+n(c.ha),0);
-    const totCost = rows_.reduce((s,c)=>s+n(c.ha)*(n(c.seedHA)+n(c.chemHA)+n(c.fertHA)+n(c.opsHA)),0);
-    const totDM = rows_.reduce((s,c)=>s+n(c.ha)*n(c.yieldKgHA)*.9,0);
+    const totHa   = rows_.reduce((s,c) => s+n(c.ha), 0);
+    const totCost = rows_.reduce((s,c) => s+n(c.ha)*(n(c.seedHA)+n(c.chemHA)+n(c.fertHA)+n(c.opsHA)), 0);
+    const totDM   = rows_.reduce((s,c) => s+n(c.ha)*n(c.yieldKgHA)*.9, 0);
     rows += `<tr class="section-row"><td colspan="2"><span class="tag ${CROP_TAG[crop]||'tag-other'}">${crop}</span></td>
       <td style="text-align:right">${totHa.toFixed(1)} ha</td><td></td>
       <td style="text-align:right">${n(GM[crop]?.yieldKgHA).toLocaleString()}</td>
       <td style="text-align:right" colspan="4">${fmtT(totDM)} DM</td>
       <td style="text-align:right">${fmt$(totCost)}</td><td></td></tr>`;
-    rows_.forEach(c => { rows += cropRow(c, cropOptions); });
+    rows_.forEach(c => { rows += cropRow(c); });
   });
 
   if (!rows) rows = `<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--muted);">No paddocks yet — click Add Paddock below</td></tr>`;
 
   document.getElementById('tab-crop').innerHTML = `
     <div class="toolbar">
-      <div class="section-title" style="flex:1;border:none;margin:0">Crop Plan — ${settings.year}</div>
+      <div class="section-title" style="flex:1;border:none;margin:0">Crop Plan — ${activeYear}</div>
       <button class="btn btn-primary" onclick="addCropRow()">+ Add Paddock</button>
     </div>
     <div class="tbl-wrap">
@@ -439,10 +477,10 @@ function renderCrop() {
     </div>`;
 }
 
-function cropRow(c, cropOptions) {
+function cropRow(c) {
   const cost = n(c.ha) * (n(c.seedHA) + n(c.chemHA) + n(c.fertHA) + n(c.opsHA));
   const opts = CROPS.map(x => `<option${x===c.crop?' selected':''}>${x}</option>`).join('');
-  return `<tr id="cr-${c.id}">
+  return `<tr class="data-row" id="cr-${c.id}">
     <td><input value="${c.paddock||''}" onchange="updateCrop('${c.id}','paddock',this.value)" placeholder="Paddock name"></td>
     <td><select onchange="cropTypeChanged('${c.id}',this.value)">${opts}</select></td>
     <td><input class="num" type="number" value="${c.ha||''}" onchange="updateCrop('${c.id}','ha',this.value)" style="width:60px"></td>
@@ -460,7 +498,7 @@ function cropRow(c, cropOptions) {
 function addCropRow() {
   const crop = 'Kale';
   const gm = GM[crop];
-  const c = { id: uid(), paddock:'', crop, ha:'', drillDate:'', yieldKgHA: gm.yieldKgHA, seedHA: gm.seedHA, chemHA: gm.chemHA, fertHA: gm.fertHA, opsHA: gm.opsHA, notes:'' };
+  const c = { id: uid(), year: activeYear, paddock:'', crop, ha:'', drillDate:'', yieldKgHA: gm.yieldKgHA, seedHA: gm.seedHA, chemHA: gm.chemHA, fertHA: gm.fertHA, opsHA: gm.opsHA, notes:'' };
   cropPlan.push(c);
   save();
   renderCrop();
@@ -498,17 +536,16 @@ function deleteCrop(id) {
 
 // -- STOCK REQ --
 function renderStock() {
-  const deer  = stockReq.filter(r => r.species === 'Deer');
-  const cattle = stockReq.filter(r => r.species === 'Cattle');
-
-  const deerDM  = deer.reduce((s,r) => s + n(r.headCurr)*n(r.kgDMday)*n(r.days), 0);
+  const deer   = yearStock().filter(r => r.species === 'Deer');
+  const cattle = yearStock().filter(r => r.species === 'Cattle');
+  const deerDM   = deer.reduce((s,r) => s + n(r.headCurr)*n(r.kgDMday)*n(r.days), 0);
   const cattleDM = cattle.reduce((s,r) => s + n(r.headCurr)*n(r.kgDMday)*n(r.days), 0);
 
   document.getElementById('tab-stock').innerHTML = `
     <div class="toolbar">
-      <div class="section-title" style="flex:1;border:none;margin:0">Stock Feed Requirements — ${settings.year}</div>
-      <button class="btn btn-primary btn-sm" onclick="addStockRow('Deer')">+ Add Deer Class</button>
-      <button class="btn btn-ghost btn-sm" onclick="addStockRow('Cattle')">+ Add Cattle Class</button>
+      <div class="section-title" style="flex:1;border:none;margin:0">Stock Feed Requirements — ${activeYear}</div>
+      <button class="btn btn-primary btn-sm" onclick="addStockRow('Deer')">+ Deer Class</button>
+      <button class="btn btn-ghost btn-sm" onclick="addStockRow('Cattle')">+ Cattle Class</button>
     </div>
     <div class="tbl-wrap">
       <table>
@@ -526,20 +563,11 @@ function renderStock() {
         <tbody>
           <tr class="section-row"><td colspan="9">Deer</td></tr>
           ${deer.map(r => stockRow(r)).join('') || '<tr><td colspan="9" style="color:var(--muted);padding:12px">No deer classes — add above</td></tr>'}
-          <tr class="total-row">
-            <td colspan="7">Deer total</td>
-            <td style="text-align:right">${fmtDM(deerDM)}</td><td></td>
-          </tr>
+          <tr class="total-row"><td colspan="7">Deer total</td><td style="text-align:right">${fmtDM(deerDM)}</td><td></td></tr>
           <tr class="section-row"><td colspan="9">Cattle</td></tr>
           ${cattle.map(r => stockRow(r)).join('') || '<tr><td colspan="9" style="color:var(--muted);padding:12px">No cattle classes — add above</td></tr>'}
-          <tr class="total-row">
-            <td colspan="7">Cattle total</td>
-            <td style="text-align:right">${fmtDM(cattleDM)}</td><td></td>
-          </tr>
-          <tr class="total-row">
-            <td colspan="7">Grand total</td>
-            <td style="text-align:right">${fmtDM(totalDemand())}</td><td></td>
-          </tr>
+          <tr class="total-row"><td colspan="7">Cattle total</td><td style="text-align:right">${fmtDM(cattleDM)}</td><td></td></tr>
+          <tr class="total-row"><td colspan="7">Grand total</td><td style="text-align:right">${fmtDM(totalDemand())}</td><td></td></tr>
         </tbody>
       </table>
       <div class="add-row">
@@ -551,7 +579,7 @@ function renderStock() {
 
 function stockRow(r) {
   const total = n(r.headCurr) * n(r.kgDMday) * n(r.days);
-  return `<tr id="sr-${r.id}">
+  return `<tr class="data-row" id="sr-${r.id}">
     <td><input value="${r.cls||''}" onchange="updateStock('${r.id}','cls',this.value)" placeholder="e.g. Ma Hinds" style="min-width:140px"></td>
     <td><input class="num" type="number" value="${r.headPrev||''}" onchange="updateStock('${r.id}','headPrev',this.value)" style="width:70px"></td>
     <td><input class="num" type="number" value="${r.headCurr||''}" onchange="updateStockCalc('${r.id}','headCurr',this.value)" style="width:70px"></td>
@@ -565,7 +593,7 @@ function stockRow(r) {
 }
 
 function addStockRow(species) {
-  const r = { id: uid(), species, cls:'', headPrev:'', headCurr:'', kgDMday:'', period:'15 May - 15 Sep', days: 120, feedSource:'', notes:'' };
+  const r = { id: uid(), year: activeYear, species, cls:'', headPrev:'', headCurr:'', kgDMday:'', period:'15 May - 15 Sep', days: 120, feedSource:'', notes:'' };
   stockReq.push(r);
   save();
   renderStock();
@@ -603,13 +631,13 @@ function renderFeed() {
   const sur  = sup - dem;
   const pct  = dem > 0 ? Math.min(110, Math.round(sup/dem*100)) : 0;
 
-  const suppOpts = `<option value="Silage">Silage</option><option value="Balage">Balage</option><option value="Hay">Hay</option><option value="Maize Silage">Maize Silage</option><option value="Lucerne Silage">Lucerne Silage</option><option value="Supplement">Supplement</option>`;
+  const suppOpts = `<option>Silage</option><option>Balage</option><option>Hay</option><option>Maize Silage</option><option>Lucerne Silage</option><option>Supplement</option>`;
 
-  const suppRows = supplements.map(x => {
+  const suppRows = yearSupps().map(x => {
     const cost = n(x.kgDM) * n(x.costPerKgDM);
-    return `<tr id="xr-${x.id}">
+    return `<tr class="data-row" id="xr-${x.id}">
       <td><input value="${x.name||''}" onchange="updateSupp('${x.id}','name',this.value)" placeholder="Stack / source name"></td>
-      <td><select onchange="updateSupp('${x.id}','type',this.value)">${suppOpts.replace(`"${x.type||'Silage'}"`,`"${x.type||'Silage'}" selected`)}</select></td>
+      <td><select onchange="updateSupp('${x.id}','type',this.value)">${suppOpts.replace(`>${x.type||'Silage'}<`,` selected>${x.type||'Silage'}<`)}</select></td>
       <td><input class="num" type="number" value="${x.kgDM||''}" onchange="updateSupp('${x.id}','kgDM',this.value)" style="width:90px"></td>
       <td><input class="num" type="number" step="0.001" value="${x.costPerKgDM||''}" onchange="updateSupp('${x.id}','costPerKgDM',this.value)" style="width:80px" placeholder="$/kgDM"></td>
       <td style="text-align:right;font-weight:600">${fmt$(cost)}</td>
@@ -617,7 +645,7 @@ function renderFeed() {
     </tr>`;
   }).join('');
 
-  const cropFeedRows = cropPlan.length ? cropPlan.map(c => {
+  const cropFeedRows = yearCrop().length ? yearCrop().map(c => {
     const dm = n(c.ha) * n(c.yieldKgHA) * 0.90;
     return `<tr>
       <td><span class="tag ${CROP_TAG[c.crop]||'tag-other'}">${c.crop}</span></td>
@@ -652,7 +680,7 @@ function renderFeed() {
 
     <div class="fb-section">
       <div>
-        <div class="section-title" style="font-size:14px;">Supply from Crops <span style="font-size:12px;font-weight:400;color:var(--muted)">(from Crop Plan, 10% wastage applied)</span></div>
+        <div class="section-title" style="font-size:14px;">Supply from Crops <span style="font-size:12px;font-weight:400;color:var(--muted)">(10% wastage applied)</span></div>
         <div class="tbl-wrap">
           <table>
             <thead><tr><th>Crop</th><th>Paddock</th><th style="text-align:right">Ha</th><th style="text-align:right">Yield kgDM/ha</th><th style="text-align:right">kgDM</th></tr></thead>
@@ -663,7 +691,6 @@ function renderFeed() {
           </table>
         </div>
       </div>
-
       <div>
         <div class="section-title" style="font-size:14px;">Supply from Supplements / Silage</div>
         <div class="tbl-wrap">
@@ -685,7 +712,7 @@ function renderFeed() {
         <table>
           <thead><tr><th>Class</th><th>Species</th><th style="text-align:right">Head</th><th style="text-align:right">kgDM/day</th><th>Period</th><th style="text-align:right">Days</th><th>Feed Source</th><th style="text-align:right">Total kgDM</th></tr></thead>
           <tbody>
-            ${stockReq.length ? stockReq.map(r => {
+            ${yearStock().length ? yearStock().map(r => {
               const total = n(r.headCurr)*n(r.kgDMday)*n(r.days);
               return `<tr>
                 <td>${r.cls||'-'}</td><td>${r.species||'-'}</td>
@@ -705,7 +732,7 @@ function renderFeed() {
 }
 
 function addSupp() {
-  const x = { id: uid(), name:'', type:'Silage', kgDM:'', costPerKgDM: 0.18, notes:'' };
+  const x = { id: uid(), year: activeYear, name:'', type:'Silage', kgDM:'', costPerKgDM: 0.18, notes:'' };
   supplements.push(x);
   save();
   renderFeed();
@@ -727,8 +754,8 @@ function deleteSupp(id) {
 // -- FINANCIAL --
 function renderFinancial() {
   const byType = {};
-  cropPlan.forEach(c => {
-    if (!byType[c.crop]) byType[c.crop] = { ha: 0, seed:0, chem:0, fert:0, ops:0 };
+  yearCrop().forEach(c => {
+    if (!byType[c.crop]) byType[c.crop] = { ha:0, seed:0, chem:0, fert:0, ops:0 };
     const h = n(c.ha);
     byType[c.crop].ha   += h;
     byType[c.crop].seed += h * n(c.seedHA);
@@ -747,11 +774,11 @@ function renderFinancial() {
       <td style="text-align:right">${fmt$(v.fert)}</td>
       <td style="text-align:right">${fmt$(v.ops)}</td>
       <td style="text-align:right;font-weight:700">${fmt$(total)}</td>
-      <td style="text-align:right;color:var(--muted)">${fmt$(total / (v.ha||1))}/ha</td>
+      <td style="text-align:right;color:var(--muted)">${fmt$(total/(v.ha||1))}/ha</td>
     </tr>`;
   }).join('') || '<tr><td colspan="8" style="color:var(--muted);padding:12px">No crops entered</td></tr>';
 
-  const suppRows = supplements.map(x => {
+  const suppRows = yearSupps().map(x => {
     const cost = n(x.kgDM) * n(x.costPerKgDM);
     return `<tr><td>${x.name||'-'}</td><td>${x.type||'-'}</td><td style="text-align:right">${fmtDM(x.kgDM)}</td><td style="text-align:right">${n(x.costPerKgDM).toFixed(3)}</td><td style="text-align:right;font-weight:700">${fmt$(cost)}</td></tr>`;
   }).join('') || '<tr><td colspan="5" style="color:var(--muted);padding:12px">No supplements entered</td></tr>';
@@ -765,7 +792,7 @@ function renderFinancial() {
       <div class="card"><div class="label">Total Programme</div><div class="value">${fmt$(grandTotal)}</div></div>
     </div>
 
-    <div class="section-title">Crop Establishment Costs</div>
+    <div class="section-title">Crop Establishment Costs — ${activeYear}</div>
     <div class="tbl-wrap" style="margin-bottom:24px">
       <table>
         <thead><tr><th>Crop</th><th style="text-align:right">Ha</th><th style="text-align:right">Seed</th><th style="text-align:right">Chem</th><th style="text-align:right">Fert</th><th style="text-align:right">Ops</th><th style="text-align:right">Total</th><th style="text-align:right">$/ha</th></tr></thead>
@@ -794,75 +821,76 @@ function renderFinancial() {
     </div>`;
 }
 
-// -- HISTORY --
+// -- ALL SEASONS (cross-year comparison) --
 function renderHistory() {
-  const years = [...new Set(history.map(h => h.year))].sort().reverse();
+  const yrs = getYears();
 
-  const rows = history.length ? history.map(h => {
-    const variance = h.yieldActual && h.yieldBudget ? Math.round((h.yieldActual/h.yieldBudget - 1)*100) : null;
-    const varText = variance !== null ? `<span style="color:${variance>=0?'var(--ok)':'var(--danger)'}">${variance>=0?'+':''}${variance}%</span>` : '-';
-    return `<tr id="hr-${h.id}">
-      <td><input value="${h.year||''}" onchange="updateHistory('${h.id}','year',this.value)" style="width:70px"></td>
-      <td><input value="${h.paddock||''}" onchange="updateHistory('${h.id}','paddock',this.value)"></td>
-      <td><select onchange="updateHistory('${h.id}','crop',this.value)">${CROPS.map(c=>`<option${c===h.crop?' selected':''}>${c}</option>`).join('')}</select></td>
-      <td><input class="num" type="number" value="${h.ha||''}" onchange="updateHistory('${h.id}','ha',this.value)" style="width:60px"></td>
-      <td><input class="num" type="number" value="${h.yieldBudget||''}" onchange="updateHistory('${h.id}','yieldBudget',this.value)" style="width:80px"></td>
-      <td><input class="num" type="number" value="${h.yieldActual||''}" onchange="updateHistory('${h.id}','yieldActual',this.value)" style="width:80px"></td>
-      <td style="text-align:right">${varText}</td>
-      <td><input value="${h.notes||''}" onchange="updateHistory('${h.id}','notes',this.value)" placeholder="Notes"></td>
-      <td><button class="del-btn" onclick="deleteHistory('${h.id}')">x</button></td>
+  const rows = yrs.map(y => {
+    const cp = cropPlan.filter(c    => (c.year    || YEAR) === y);
+    const sr = stockReq.filter(r   => (r.year    || YEAR) === y);
+    const su = supplements.filter(x => (x.year   || YEAR) === y);
+    const ha      = cp.reduce((s,c) => s+n(c.ha), 0);
+    const cSup    = cp.reduce((s,c) => s+n(c.ha)*n(c.yieldKgHA)*.9, 0);
+    const sSup    = su.reduce((s,x) => s+n(x.kgDM), 0);
+    const supply  = cSup + sSup;
+    const demand  = sr.reduce((s,r) => s+n(r.headCurr)*n(r.kgDMday)*n(r.days), 0);
+    const cost    = cp.reduce((s,c) => s+n(c.ha)*(n(c.seedHA)+n(c.chemHA)+n(c.fertHA)+n(c.opsHA)), 0);
+    const sur     = supply - demand;
+    const isActive = y === activeYear;
+
+    return `<tr class="yr-row${isActive?' yr-active':''}" onclick="changeYear('${y}');showTab('dashboard')">
+      <td><span class="yr-badge">${y}</span>${isActive?' <span style="font-size:11px;color:var(--muted)">← viewing</span>':''}</td>
+      <td style="text-align:right">${ha > 0 ? ha.toFixed(1) : '<span style="color:var(--muted)">—</span>'}</td>
+      <td style="text-align:right">${cp.length > 0 ? cp.length : '<span style="color:var(--muted)">—</span>'}</td>
+      <td style="text-align:right">${sr.length > 0 ? sr.length : '<span style="color:var(--muted)">—</span>'}</td>
+      <td style="text-align:right">${supply > 0 ? fmtT(supply) : '<span style="color:var(--muted)">—</span>'}</td>
+      <td style="text-align:right">${demand > 0 ? fmtT(demand) : '<span style="color:var(--muted)">—</span>'}</td>
+      <td style="text-align:right;font-weight:700;color:${sur>0?'var(--ok)':sur<0?'var(--danger)':'inherit'}">
+        ${supply > 0 && demand > 0 ? (sur>=0?'+':'')+fmtT(sur) : '<span style="color:var(--muted)">—</span>'}
+      </td>
+      <td style="text-align:right">${cost > 0 ? fmt$(cost) : '<span style="color:var(--muted)">—</span>'}</td>
+      <td><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();changeYear('${y}');showTab('crop')">Open →</button></td>
     </tr>`;
-  }).join('') : '<tr><td colspan="9" style="color:var(--muted);padding:16px;text-align:center">No history yet — add prior year actuals here</td></tr>';
+  }).join('');
 
   document.getElementById('tab-history').innerHTML = `
-    <div class="toolbar">
-      <div class="section-title" style="flex:1;border:none;margin:0">Yield History</div>
-      <button class="btn btn-primary btn-sm" onclick="addHistoryRow()">+ Add Record</button>
+    <div class="section-title">All Seasons
+      <button class="btn btn-sm btn-ghost" onclick="newYear()">+ New Season</button>
     </div>
+    <p style="color:var(--muted);font-size:12px;margin:0 0 16px">Click any row to open that season across all tabs. The currently viewed season is highlighted.</p>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Year</th><th>Paddock</th><th>Crop</th><th style="text-align:right">Ha</th><th style="text-align:right">Budget kg/ha</th><th style="text-align:right">Actual kg/ha</th><th style="text-align:right">Variance</th><th>Notes</th><th></th></tr></thead>
+        <thead><tr>
+          <th>Season</th>
+          <th style="text-align:right">Total Ha</th>
+          <th style="text-align:right">Paddocks</th>
+          <th style="text-align:right">Stock Classes</th>
+          <th style="text-align:right">DM Supply</th>
+          <th style="text-align:right">DM Demand</th>
+          <th style="text-align:right">Surplus / Deficit</th>
+          <th style="text-align:right">Crop Cost</th>
+          <th></th>
+        </tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      <div class="add-row"><button onclick="addHistoryRow()">+ Add record</button></div>
-    </div>`;
-}
-
-function addHistoryRow() {
-  const h = { id: uid(), year: '2025/26', paddock:'', crop:'Kale', ha:'', yieldBudget:'', yieldActual:'', notes:'' };
-  history.push(h);
-  save();
-  renderHistory();
-  const row = document.getElementById('hr-' + h.id);
-  if (row) row.querySelectorAll('input')[1].focus();
-}
-
-function updateHistory(id, field, val) {
-  const h = history.find(x => x.id === id);
-  if (h) { h[field] = val; save(); }
-}
-
-function deleteHistory(id) {
-  history = history.filter(x => x.id !== id);
-  save();
-  renderHistory();
+    </div>
+    <p style="font-size:12px;color:var(--muted)">Seasons with no data show — . Use the seed functions in Apps Script to load historical data, or add paddocks manually after selecting the season from the header dropdown.</p>`;
 }
 
 // -- AI ADVISOR --
 function renderAI() {
   document.getElementById('tab-ai').innerHTML = `
-    <div class="section-title">AI Advisor — ${settings.year}
+    <div class="section-title">AI Advisor — ${activeYear}
       <button class="btn btn-sm btn-ghost" onclick="saveAI()">Save Notes</button>
     </div>
     <p style="color:var(--muted);font-size:12px;margin-bottom:12px">
-      At the start of each Claude session, I read the Sheets data and update this with yield predictions, flags, and feed budget analysis.
-      You can also type notes directly here.
+      Notes and analysis for ${activeYear}. At the start of each Claude session these are read and updated with yield predictions, flags, and feed budget analysis.
     </p>
     <div class="form-group">
       <textarea id="ai-notes" style="min-height:300px">${aiNotes}</textarea>
     </div>
     <div style="margin-bottom:16px;">
-      <div class="section-title" style="font-size:14px;">Auto-generated Flags</div>
+      <div class="section-title" style="font-size:14px;">Auto-generated Flags — ${activeYear}</div>
       <div class="flags-box">
         ${buildFlags().map(f => `
           <div class="flag-item">
@@ -886,10 +914,6 @@ function renderSettings() {
     <div class="settings-grid">
       <div>
         <div class="form-group">
-          <label>Current Year</label>
-          <input id="s-year" value="${settings.year||''}">
-        </div>
-        <div class="form-group">
           <label>Apps Script URL</label>
           <input id="s-url" value="${settings.scriptUrl||''}" placeholder="https://script.google.com/macros/s/...">
         </div>
@@ -897,8 +921,8 @@ function renderSettings() {
           <button class="btn btn-primary" onclick="saveSettings()">Save</button>
           <button class="btn btn-ghost" onclick="toggleDisconnect()">${settings.disconnected?'Reconnect Sync':'Disconnect Sync'}</button>
         </div>
-        <div style="margin-top:12px;font-size:12px;color:var(--muted)" id="sync-status-txt">
-          ${settings.disconnected ? 'Sync disconnected.' : 'Sync active.'}
+        <div style="margin-top:12px;font-size:12px;color:var(--muted)">
+          ${settings.disconnected ? 'Sync disconnected.' : 'Sync active.'} Season selected via header dropdown.
         </div>
       </div>
       <div>
@@ -933,13 +957,11 @@ function renderSettings() {
 }
 
 function saveSettings() {
-  settings.year        = document.getElementById('s-year')?.value || settings.year;
-  settings.scriptUrl   = document.getElementById('s-url')?.value || '';
+  settings.scriptUrl    = document.getElementById('s-url')?.value || '';
   settings.disconnected = false;
   save();
   startPoll();
   logSync('Settings saved');
-  document.getElementById('hdr-sub').textContent = settings.year + ' · ' + APP_VER;
 }
 
 function toggleDisconnect() {
@@ -976,11 +998,19 @@ async function pullFromSheet() {
     const res = await fetch(settings.scriptUrl + '?action=pull', { cache: 'no-store' });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    if (Array.isArray(data.cropPlan)    && data.cropPlan.length)    cropPlan    = data.cropPlan;
-    if (Array.isArray(data.stockReq)    && data.stockReq.length)    stockReq    = data.stockReq;
-    if (Array.isArray(data.supplements) && data.supplements.length) supplements = data.supplements;
-    if (Array.isArray(data.history)     && data.history.length)     history     = data.history;
-    if (typeof data.aiNotes === 'string' && data.aiNotes)           aiNotes     = data.aiNotes;
+    if (Array.isArray(data.cropPlan) && data.cropPlan.length) {
+      data.cropPlan.forEach(c => { if (!c.year) c.year = YEAR; });
+      cropPlan = data.cropPlan;
+    }
+    if (Array.isArray(data.stockReq) && data.stockReq.length) {
+      data.stockReq.forEach(r => { if (!r.year) r.year = YEAR; });
+      stockReq = data.stockReq;
+    }
+    if (Array.isArray(data.supplements) && data.supplements.length) {
+      data.supplements.forEach(x => { if (!x.year) x.year = YEAR; });
+      supplements = data.supplements;
+    }
+    if (typeof data.aiNotes === 'string' && data.aiNotes) aiNotes = data.aiNotes;
     lastTs = data.lastModified || 0;
     localStorage.setItem(NS+'lastTs', lastTs);
     save();
@@ -996,7 +1026,7 @@ async function pullFromSheet() {
 async function pushToSheet() {
   if (!settings.scriptUrl || settings.disconnected) { syncPending = false; return; }
   try {
-    const payload = { cropPlan, stockReq, supplements, history, aiNotes, clientTs: lastTs };
+    const payload = { cropPlan, stockReq, supplements, aiNotes, clientTs: lastTs };
     const url = settings.scriptUrl + '?action=push&data=' + encodeURIComponent(JSON.stringify(payload));
     fetch(url, { mode: 'no-cors' }).catch(() => {});
     lastTs = Date.now();
@@ -1030,6 +1060,7 @@ function startPoll() {
 
 // -- INIT --
 load();
+updateYearSel();
 renderAll();
 if (settings.scriptUrl && !settings.disconnected) pullFromSheet();
 else setSyncPill('', settings.scriptUrl ? 'Offline' : 'No URL');
