@@ -194,23 +194,25 @@ td input.num { text-align: right; }
 
 <script>
 // -- CONSTANTS --
-const APP_VER = '2.1';
+const APP_VER = '2.2';
 const NS = 'crop2_';
 const YEAR = '2026/27';
 const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbxaPkRHrWqjfqgMCaV-s-uZYSvVIFgOyC5IpKg5J6_CLv_5gEkP7_SukyHOYhTvEYI2jQ/exec';
 
 const CROPS = ['Kale','Swedes','Fodder Beet','Lifting Beet','Maize','Rape','Triticale','Clover','Other'];
 
+// wastage = % of gross DM lost to trampling, selectivity, contamination, stack/handling losses
+// Net DM consumed = gross DM × (1 - wastage/100)
 const GM = {
-  'Kale':        { yieldKgHA: 12000, seedHA: 147,  chemHA: 435,  fertHA: 566, opsHA: 295 },
-  'Swedes':      { yieldKgHA: 14000, seedHA: 240,  chemHA: 543,  fertHA: 535, opsHA: 395 },
-  'Fodder Beet': { yieldKgHA: 20000, seedHA: 430,  chemHA: 1078, fertHA: 335, opsHA: 378 },
-  'Lifting Beet':{ yieldKgHA: 16000, seedHA: 521,  chemHA: 1078, fertHA: 335, opsHA: 378 },
-  'Maize':       { yieldKgHA: 18000, seedHA: 999,  chemHA: 326,  fertHA: 892, opsHA: 525 },
-  'Rape':        { yieldKgHA: 8000,  seedHA: 195,  chemHA: 195,  fertHA: 163, opsHA: 160 },
-  'Triticale':   { yieldKgHA: 6000,  seedHA: 250,  chemHA: 195,  fertHA: 163, opsHA: 160 },
-  'Clover':      { yieldKgHA: 8000,  seedHA: 80,   chemHA: 120,  fertHA: 200, opsHA: 180 },
-  'Other':       { yieldKgHA: 10000, seedHA: 200,  chemHA: 300,  fertHA: 300, opsHA: 300 },
+  'Kale':        { yieldKgHA: 12000, seedHA: 147,  chemHA: 435,  fertHA: 566, opsHA: 295, wastage: 25 },
+  'Swedes':      { yieldKgHA: 14000, seedHA: 240,  chemHA: 543,  fertHA: 535, opsHA: 395, wastage: 20 },
+  'Fodder Beet': { yieldKgHA: 20000, seedHA: 430,  chemHA: 1078, fertHA: 335, opsHA: 378, wastage: 10 },
+  'Lifting Beet':{ yieldKgHA: 16000, seedHA: 521,  chemHA: 1078, fertHA: 335, opsHA: 378, wastage: 12 },
+  'Maize':       { yieldKgHA: 18000, seedHA: 999,  chemHA: 326,  fertHA: 892, opsHA: 525, wastage: 15 },
+  'Rape':        { yieldKgHA: 8000,  seedHA: 195,  chemHA: 195,  fertHA: 163, opsHA: 160, wastage: 25 },
+  'Triticale':   { yieldKgHA: 6000,  seedHA: 250,  chemHA: 195,  fertHA: 163, opsHA: 160, wastage: 20 },
+  'Clover':      { yieldKgHA: 8000,  seedHA: 80,   chemHA: 120,  fertHA: 200, opsHA: 180, wastage: 15 },
+  'Other':       { yieldKgHA: 10000, seedHA: 200,  chemHA: 300,  fertHA: 300, opsHA: 300, wastage: 15 },
 };
 
 const CROP_TAG = {
@@ -288,6 +290,8 @@ function load() {
   cropPlan.forEach(c    => { if (!c.year) c.year = YEAR; });
   stockReq.forEach(r    => { if (!r.year) r.year = YEAR; });
   supplements.forEach(x => { if (!x.year) x.year = YEAR; });
+  // Migrate rows that predate the wastage field — assign crop-type default
+  cropPlan.forEach(c => { if (c.wastage === undefined || c.wastage === null || c.wastage === '') c.wastage = GM[c.crop]?.wastage ?? 15; });
   lastTs = Number(localStorage.getItem(NS+'lastTs') || 0);
 }
 
@@ -298,12 +302,16 @@ function fmtT(v) { return Math.round(n(v)/1000).toLocaleString() + 't'; }
 function fmtDM(v) { return Math.round(n(v)).toLocaleString() + ' kg'; }
 
 // -- COMPUTED TOTALS (operate on active year only) --
+function wasteFactor(c)  { return 1 - n(c.wastage) / 100; }
+function grossDM(c)      { return n(c.ha) * n(c.yieldKgHA); }
+function netDM(c)        { return grossDM(c) * wasteFactor(c); }
+function rowCost(c)      { return n(c.ha) * (n(c.seedHA) + n(c.chemHA) + n(c.fertHA) + n(c.opsHA)); }
 function totalDemand()   { return yearStock().reduce((s,r) => s + n(r.headCurr)*n(r.kgDMday)*n(r.days), 0); }
-function cropSupply()    { return yearCrop().reduce((s,c)  => s + n(c.ha)*n(c.yieldKgHA)*0.90, 0); }
+function cropSupply()    { return yearCrop().reduce((s,c)  => s + netDM(c), 0); }
 function suppSupply()    { return yearSupps().reduce((s,x) => s + n(x.kgDM), 0); }
 function totalSupply()   { return cropSupply() + suppSupply(); }
 function surplus()       { return totalSupply() - totalDemand(); }
-function totalCropCost() { return yearCrop().reduce((s,c)  => s + n(c.ha)*(n(c.seedHA)+n(c.chemHA)+n(c.fertHA)+n(c.opsHA)), 0); }
+function totalCropCost() { return yearCrop().reduce((s,c)  => s + rowCost(c), 0); }
 function totalSuppCost() { return yearSupps().reduce((s,x) => s + n(x.kgDM)*n(x.costPerKgDM), 0); }
 function totalHa()       { return yearCrop().reduce((s,c)  => s + n(c.ha), 0); }
 
@@ -402,8 +410,8 @@ function renderCropSummaryRows() {
   yearCrop().forEach(c => {
     if (!byType[c.crop]) byType[c.crop] = { ha: 0, dm: 0, cost: 0 };
     byType[c.crop].ha   += n(c.ha);
-    byType[c.crop].dm   += n(c.ha) * n(c.yieldKgHA) * 0.9;
-    byType[c.crop].cost += n(c.ha) * (n(c.seedHA) + n(c.chemHA) + n(c.fertHA) + n(c.opsHA));
+    byType[c.crop].dm   += netDM(c);
+    byType[c.crop].cost += rowCost(c);
   });
   if (!Object.keys(byType).length) return '<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:16px;">No crops entered yet</td></tr>';
   return Object.entries(byType).map(([crop, v]) => `
@@ -445,8 +453,8 @@ function renderCrop() {
 
   Object.entries(byType).forEach(([crop, rows_]) => {
     const totHa   = rows_.reduce((s,c) => s+n(c.ha), 0);
-    const totCost = rows_.reduce((s,c) => s+n(c.ha)*(n(c.seedHA)+n(c.chemHA)+n(c.fertHA)+n(c.opsHA)), 0);
-    const totDM   = rows_.reduce((s,c) => s+n(c.ha)*n(c.yieldKgHA)*.9, 0);
+    const totCost = rows_.reduce((s,c) => s+rowCost(c), 0);
+    const totDM   = rows_.reduce((s,c) => s+netDM(c), 0);
     rows += `<tr class="section-row"><td colspan="2"><span class="tag ${CROP_TAG[crop]||'tag-other'}">${crop}</span></td>
       <td style="text-align:right">${totHa.toFixed(1)} ha</td><td></td>
       <td style="text-align:right">${n(GM[crop]?.yieldKgHA).toLocaleString()}</td>
@@ -467,6 +475,7 @@ function renderCrop() {
         <thead><tr>
           <th>Paddock</th><th>Crop</th><th style="text-align:right">Ha</th>
           <th>Drill Date</th><th style="text-align:right">Yield kgDM/ha</th>
+          <th style="text-align:right">Wastage %</th>
           <th style="text-align:right">Seed $/ha</th><th style="text-align:right">Chem $/ha</th>
           <th style="text-align:right">Fert $/ha</th><th style="text-align:right">Ops $/ha</th>
           <th style="text-align:right">Total $</th><th></th>
@@ -478,19 +487,20 @@ function renderCrop() {
 }
 
 function cropRow(c) {
-  const cost = n(c.ha) * (n(c.seedHA) + n(c.chemHA) + n(c.fertHA) + n(c.opsHA));
+  const cost = rowCost(c);
   const opts = CROPS.map(x => `<option${x===c.crop?' selected':''}>${x}</option>`).join('');
   return `<tr class="data-row" id="cr-${c.id}">
     <td><input value="${c.paddock||''}" onchange="updateCrop('${c.id}','paddock',this.value)" placeholder="Paddock name"></td>
     <td><select onchange="cropTypeChanged('${c.id}',this.value)">${opts}</select></td>
-    <td><input class="num" type="number" value="${c.ha||''}" onchange="updateCrop('${c.id}','ha',this.value)" style="width:60px"></td>
+    <td><input class="num" type="number" value="${c.ha||''}" onchange="updateCropCalc('${c.id}','ha',this.value)" style="width:60px"></td>
     <td><input value="${c.drillDate||''}" onchange="updateCrop('${c.id}','drillDate',this.value)" placeholder="dd/mm/yy" style="width:80px"></td>
-    <td><input class="num" type="number" value="${c.yieldKgHA||''}" onchange="updateCrop('${c.id}','yieldKgHA',this.value)" style="width:80px"></td>
-    <td><input class="num" type="number" value="${c.seedHA||''}" onchange="updateCrop('${c.id}','seedHA',this.value)" style="width:70px"></td>
-    <td><input class="num" type="number" value="${c.chemHA||''}" onchange="updateCrop('${c.id}','chemHA',this.value)" style="width:70px"></td>
-    <td><input class="num" type="number" value="${c.fertHA||''}" onchange="updateCrop('${c.id}','fertHA',this.value)" style="width:70px"></td>
-    <td><input class="num" type="number" value="${c.opsHA||''}" onchange="updateCrop('${c.id}','opsHA',this.value)" style="width:70px"></td>
-    <td style="text-align:right;font-weight:600">${fmt$(cost)}</td>
+    <td><input class="num" type="number" value="${c.yieldKgHA||''}" onchange="updateCropCalc('${c.id}','yieldKgHA',this.value)" style="width:80px"></td>
+    <td><input class="num" type="number" value="${n(c.wastage)}" onchange="updateCropCalc('${c.id}','wastage',this.value)" style="width:55px" title="% of gross DM lost to trampling / handling"></td>
+    <td><input class="num" type="number" value="${c.seedHA||''}" onchange="updateCropCalc('${c.id}','seedHA',this.value)" style="width:70px"></td>
+    <td><input class="num" type="number" value="${c.chemHA||''}" onchange="updateCropCalc('${c.id}','chemHA',this.value)" style="width:70px"></td>
+    <td><input class="num" type="number" value="${c.fertHA||''}" onchange="updateCropCalc('${c.id}','fertHA',this.value)" style="width:70px"></td>
+    <td><input class="num" type="number" value="${c.opsHA||''}" onchange="updateCropCalc('${c.id}','opsHA',this.value)" style="width:70px"></td>
+    <td style="text-align:right;font-weight:600" id="cr-cost-${c.id}">${fmt$(cost)}</td>
     <td><button class="del-btn" onclick="deleteCrop('${c.id}')">x</button></td>
   </tr>`;
 }
@@ -498,7 +508,7 @@ function cropRow(c) {
 function addCropRow() {
   const crop = 'Kale';
   const gm = GM[crop];
-  const c = { id: uid(), year: activeYear, paddock:'', crop, ha:'', drillDate:'', yieldKgHA: gm.yieldKgHA, seedHA: gm.seedHA, chemHA: gm.chemHA, fertHA: gm.fertHA, opsHA: gm.opsHA, notes:'' };
+  const c = { id: uid(), year: activeYear, paddock:'', crop, ha:'', drillDate:'', yieldKgHA: gm.yieldKgHA, wastage: gm.wastage, seedHA: gm.seedHA, chemHA: gm.chemHA, fertHA: gm.fertHA, opsHA: gm.opsHA, notes:'' };
   cropPlan.push(c);
   save();
   renderCrop();
@@ -508,14 +518,16 @@ function addCropRow() {
 
 function updateCrop(id, field, val) {
   const c = cropPlan.find(x => x.id === id);
+  if (c) { c[field] = val; save(); }
+}
+
+function updateCropCalc(id, field, val) {
+  const c = cropPlan.find(x => x.id === id);
   if (!c) return;
   c[field] = val;
   save();
-  if (['ha','seedHA','chemHA','fertHA','opsHA'].includes(field)) {
-    const cost = n(c.ha) * (n(c.seedHA) + n(c.chemHA) + n(c.fertHA) + n(c.opsHA));
-    const row = document.getElementById('cr-' + id);
-    if (row) row.querySelectorAll('td')[9].textContent = fmt$(cost);
-  }
+  const el = document.getElementById('cr-cost-' + id);
+  if (el) el.textContent = fmt$(rowCost(c));
 }
 
 function cropTypeChanged(id, crop) {
@@ -523,7 +535,7 @@ function cropTypeChanged(id, crop) {
   if (!c) return;
   c.crop = crop;
   const gm = GM[crop];
-  if (gm) { c.yieldKgHA = gm.yieldKgHA; c.seedHA = gm.seedHA; c.chemHA = gm.chemHA; c.fertHA = gm.fertHA; c.opsHA = gm.opsHA; }
+  if (gm) { c.yieldKgHA = gm.yieldKgHA; c.wastage = gm.wastage; c.seedHA = gm.seedHA; c.chemHA = gm.chemHA; c.fertHA = gm.fertHA; c.opsHA = gm.opsHA; }
   save();
   renderCrop();
 }
@@ -646,15 +658,18 @@ function renderFeed() {
   }).join('');
 
   const cropFeedRows = yearCrop().length ? yearCrop().map(c => {
-    const dm = n(c.ha) * n(c.yieldKgHA) * 0.90;
+    const gross = grossDM(c);
+    const net   = netDM(c);
     return `<tr>
       <td><span class="tag ${CROP_TAG[c.crop]||'tag-other'}">${c.crop}</span></td>
       <td>${c.paddock||'-'}</td>
       <td style="text-align:right">${n(c.ha).toFixed(1)}</td>
       <td style="text-align:right">${n(c.yieldKgHA).toLocaleString()}</td>
-      <td style="text-align:right;font-weight:600">${fmtDM(dm)}</td>
+      <td style="text-align:right;color:var(--muted)">${fmtDM(gross)}</td>
+      <td style="text-align:right">${n(c.wastage)}%</td>
+      <td style="text-align:right;font-weight:600">${fmtDM(net)}</td>
     </tr>`;
-  }).join('') : `<tr><td colspan="5" style="color:var(--muted);padding:12px">No crops in plan</td></tr>`;
+  }).join('') : `<tr><td colspan="7" style="color:var(--muted);padding:12px">No crops in plan</td></tr>`;
 
   document.getElementById('tab-feed').innerHTML = `
     <div class="fb-summary">
@@ -680,13 +695,13 @@ function renderFeed() {
 
     <div class="fb-section">
       <div>
-        <div class="section-title" style="font-size:14px;">Supply from Crops <span style="font-size:12px;font-weight:400;color:var(--muted)">(10% wastage applied)</span></div>
+        <div class="section-title" style="font-size:14px;">Supply from Crops <span style="font-size:12px;font-weight:400;color:var(--muted)">(crop-specific wastage applied)</span></div>
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Crop</th><th>Paddock</th><th style="text-align:right">Ha</th><th style="text-align:right">Yield kgDM/ha</th><th style="text-align:right">kgDM</th></tr></thead>
+            <thead><tr><th>Crop</th><th>Paddock</th><th style="text-align:right">Ha</th><th style="text-align:right">Yield kgDM/ha</th><th style="text-align:right">Gross DM</th><th style="text-align:right">Wastage</th><th style="text-align:right">Net DM consumed</th></tr></thead>
             <tbody>
               ${cropFeedRows}
-              <tr class="total-row"><td colspan="4">Total from crops</td><td style="text-align:right">${fmtDM(cSup)}</td></tr>
+              <tr class="total-row"><td colspan="6">Total net DM from crops</td><td style="text-align:right">${fmtDM(cSup)}</td></tr>
             </tbody>
           </table>
         </div>
@@ -755,17 +770,19 @@ function deleteSupp(id) {
 function renderFinancial() {
   const byType = {};
   yearCrop().forEach(c => {
-    if (!byType[c.crop]) byType[c.crop] = { ha:0, seed:0, chem:0, fert:0, ops:0 };
+    if (!byType[c.crop]) byType[c.crop] = { ha:0, seed:0, chem:0, fert:0, ops:0, netDM:0 };
     const h = n(c.ha);
-    byType[c.crop].ha   += h;
-    byType[c.crop].seed += h * n(c.seedHA);
-    byType[c.crop].chem += h * n(c.chemHA);
-    byType[c.crop].fert += h * n(c.fertHA);
-    byType[c.crop].ops  += h * n(c.opsHA);
+    byType[c.crop].ha    += h;
+    byType[c.crop].seed  += h * n(c.seedHA);
+    byType[c.crop].chem  += h * n(c.chemHA);
+    byType[c.crop].fert  += h * n(c.fertHA);
+    byType[c.crop].ops   += h * n(c.opsHA);
+    byType[c.crop].netDM += netDM(c);
   });
 
   const cropRows = Object.entries(byType).map(([crop, v]) => {
     const total = v.seed + v.chem + v.fert + v.ops;
+    const costPerNetDM = v.netDM > 0 ? total / v.netDM : 0;
     return `<tr>
       <td><span class="tag ${CROP_TAG[crop]||'tag-other'}">${crop}</span></td>
       <td style="text-align:right">${v.ha.toFixed(1)}</td>
@@ -775,8 +792,9 @@ function renderFinancial() {
       <td style="text-align:right">${fmt$(v.ops)}</td>
       <td style="text-align:right;font-weight:700">${fmt$(total)}</td>
       <td style="text-align:right;color:var(--muted)">${fmt$(total/(v.ha||1))}/ha</td>
+      <td style="text-align:right;font-weight:700;color:var(--info)">$${costPerNetDM.toFixed(3)}/kgDM</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="8" style="color:var(--muted);padding:12px">No crops entered</td></tr>';
+  }).join('') || '<tr><td colspan="9" style="color:var(--muted);padding:12px">No crops entered</td></tr>';
 
   const suppRows = yearSupps().map(x => {
     const cost = n(x.kgDM) * n(x.costPerKgDM);
@@ -795,7 +813,7 @@ function renderFinancial() {
     <div class="section-title">Crop Establishment Costs — ${activeYear}</div>
     <div class="tbl-wrap" style="margin-bottom:24px">
       <table>
-        <thead><tr><th>Crop</th><th style="text-align:right">Ha</th><th style="text-align:right">Seed</th><th style="text-align:right">Chem</th><th style="text-align:right">Fert</th><th style="text-align:right">Ops</th><th style="text-align:right">Total</th><th style="text-align:right">$/ha</th></tr></thead>
+        <thead><tr><th>Crop</th><th style="text-align:right">Ha</th><th style="text-align:right">Seed</th><th style="text-align:right">Chem</th><th style="text-align:right">Fert</th><th style="text-align:right">Ops</th><th style="text-align:right">Total</th><th style="text-align:right">$/ha</th><th style="text-align:right">$/kgDM consumed</th></tr></thead>
         <tbody>
           ${cropRows}
           <tr class="total-row">
@@ -804,6 +822,7 @@ function renderFinancial() {
             <td colspan="4"></td>
             <td style="text-align:right">${fmt$(totalCropCost())}</td>
             <td style="text-align:right">${fmt$(totalCropCost()/(totalHa()||1))}/ha</td>
+            <td style="text-align:right">$${cropSupply() > 0 ? (totalCropCost()/cropSupply()).toFixed(3) : '—'}/kgDM</td>
           </tr>
         </tbody>
       </table>
@@ -830,11 +849,11 @@ function renderHistory() {
     const sr = stockReq.filter(r   => (r.year    || YEAR) === y);
     const su = supplements.filter(x => (x.year   || YEAR) === y);
     const ha      = cp.reduce((s,c) => s+n(c.ha), 0);
-    const cSup    = cp.reduce((s,c) => s+n(c.ha)*n(c.yieldKgHA)*.9, 0);
+    const cSup    = cp.reduce((s,c) => s+netDM(c), 0);
     const sSup    = su.reduce((s,x) => s+n(x.kgDM), 0);
     const supply  = cSup + sSup;
     const demand  = sr.reduce((s,r) => s+n(r.headCurr)*n(r.kgDMday)*n(r.days), 0);
-    const cost    = cp.reduce((s,c) => s+n(c.ha)*(n(c.seedHA)+n(c.chemHA)+n(c.fertHA)+n(c.opsHA)), 0);
+    const cost    = cp.reduce((s,c) => s+rowCost(c), 0);
     const sur     = supply - demand;
     const isActive = y === activeYear;
 
@@ -936,18 +955,22 @@ function renderSettings() {
       <div class="section-title" style="font-size:14px;">Gross Margin Templates (defaults when crop type selected)</div>
       <div class="tbl-wrap" style="max-width:700px">
         <table>
-          <thead><tr><th>Crop</th><th style="text-align:right">Yield kgDM/ha</th><th style="text-align:right">Seed $/ha</th><th style="text-align:right">Chem $/ha</th><th style="text-align:right">Fert $/ha</th><th style="text-align:right">Ops $/ha</th><th style="text-align:right">Total $/ha</th></tr></thead>
+          <thead><tr><th>Crop</th><th style="text-align:right">Yield kgDM/ha</th><th style="text-align:right">Wastage %</th><th style="text-align:right">Seed $/ha</th><th style="text-align:right">Chem $/ha</th><th style="text-align:right">Fert $/ha</th><th style="text-align:right">Ops $/ha</th><th style="text-align:right">Total $/ha</th><th style="text-align:right">$/kgDM consumed</th></tr></thead>
           <tbody>
             ${CROPS.filter(c=>c!=='Other').map(c => {
               const g = GM[c];
               const tot = g.seedHA + g.chemHA + g.fertHA + g.opsHA;
+              const netYield = g.yieldKgHA * (1 - g.wastage / 100);
+              const costPerNet = netYield > 0 ? tot / netYield : 0;
               return `<tr><td><span class="tag ${CROP_TAG[c]||'tag-other'}">${c}</span></td>
                 <td style="text-align:right">${g.yieldKgHA.toLocaleString()}</td>
+                <td style="text-align:right">${g.wastage}%</td>
                 <td style="text-align:right">${g.seedHA}</td>
                 <td style="text-align:right">${g.chemHA}</td>
                 <td style="text-align:right">${g.fertHA}</td>
                 <td style="text-align:right">${g.opsHA}</td>
                 <td style="text-align:right;font-weight:700">${fmt$(tot)}/ha</td>
+                <td style="text-align:right;font-weight:700;color:var(--info)">$${costPerNet.toFixed(3)}/kgDM</td>
               </tr>`;
             }).join('')}
           </tbody>
