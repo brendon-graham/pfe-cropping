@@ -2,1452 +2,1043 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="PFE Cropping">
-<meta name="theme-color" content="#1B3A1B">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PFE Cropping</title>
-<meta name="app-version" content="1.0">
-<script>
-(function(){
-  const V="crop-v1.0";
-  if(!("serviceWorker" in navigator))return;
-  const sw=`const C="${V}";self.addEventListener("install",e=>{e.waitUntil(caches.open(C).then(c=>c.add(self.registration.scope)).then(()=>self.skipWaiting()))});self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});self.addEventListener("fetch",e=>{if(e.request.mode==="navigate"){e.respondWith(fetch(e.request).then(r=>{const c=r.clone();caches.open(C).then(ca=>ca.put(e.request,c));return r}).catch(()=>caches.match(e.request)))}else{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))}});self.addEventListener("message",e=>{if(e.data==="skipWaiting")self.skipWaiting()});`;
-  const b=new Blob([sw],{type:"application/javascript"});
-  navigator.serviceWorker.register(URL.createObjectURL(b)).then(r=>{r.addEventListener("updatefound",()=>{const n=r.installing;n.addEventListener("statechange",()=>{if(n.state==="installed"&&navigator.serviceWorker.controller){n.postMessage("skipWaiting");navigator.serviceWorker.addEventListener("controllerchange",()=>location.reload())}})})}).catch(()=>{});
-})();
-</script>
-<link rel="manifest" href="data:application/json;charset=utf-8,%7B%22name%22%3A%22PFE%20Cropping%22%2C%22short_name%22%3A%22Cropping%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%231B3A1B%22%2C%22theme_color%22%3A%22%231B3A1B%22%7D">
 <style>
-:root{
-  --soil:#1B3A1B;--bark:#2D5A2D;--grass:#4A7C4A;--grass2:#6B9E6B;
-  --straw:#D4A843;--cream:#F4F1E8;--fog:#E8E4DC;--white:#fff;
-  --danger:#C0392B;--warn:#D68910;--ok:#27AE60;--sky:#2980B9;--purple:#7C3AED;
-  --text:#1A1A1A;--muted:#6B6560;--border:#D4CEC4;
-  --r:12px;--rs:8px;--sh:0 2px 12px rgba(27,58,27,.10);--shl:0 8px 32px rgba(27,58,27,.18);
+:root {
+  --soil: #1B3A1B;
+  --leaf: #2D5A27;
+  --lime: #7CB342;
+  --straw: #F5F0E8;
+  --card: #FFFFFF;
+  --border: #DDD;
+  --muted: #888;
+  --warn: #E65100;
+  --danger: #B71C1C;
+  --ok: #2E7D32;
+  --info: #1565C0;
+  --text: #1A1A1A;
+  --tab-h: 48px;
+  --header-h: 56px;
 }
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--cream);color:var(--text);height:100dvh;display:flex;flex-direction:column;overflow:hidden}
-.header{background:var(--soil);color:var(--cream);padding:12px 20px 0;flex-shrink:0}
-.header-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:12px}
-.header h1{font-size:18px;font-weight:800;letter-spacing:-.4px}
-.header-sub{font-size:11px;color:rgba(212,168,67,.8);margin-top:1px}
-.hdr-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
-.pill{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap;border:none;cursor:pointer}
-.pill-ok{background:var(--ok);color:#fff}.pill-warn{background:var(--warn);color:#fff}
-.pill-danger{background:var(--danger);color:#fff}.pill-info{background:var(--sky);color:#fff}
-.pill-muted{background:rgba(255,255,255,.15);color:rgba(255,255,255,.7)}
-.btn{padding:7px 14px;border-radius:var(--rs);border:none;cursor:pointer;font-size:13px;font-weight:600;transition:opacity .15s}
-.btn:hover{opacity:.85}.btn-primary{background:var(--straw);color:var(--soil)}
-.btn-ghost{background:rgba(255,255,255,.12);color:var(--cream)}
-.btn-sm{padding:5px 10px;font-size:12px}
-.btn-danger{background:var(--danger);color:#fff}
-.tabs{display:flex;gap:0;overflow-x:auto;margin-top:8px}
-.tabs::-webkit-scrollbar{display:none}
-.tab-btn{flex-shrink:0;padding:11px 14px;font-size:12px;font-weight:600;border:none;background:transparent;color:rgba(245,240,232,.5);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap}
-.tab-btn.active{color:var(--straw);border-bottom-color:var(--straw)}
-.main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
-.tab-panel{display:none;padding:16px 20px;max-width:1300px;margin:0 auto}
-.tab-panel.active{display:block}
-.card{background:var(--white);border-radius:var(--r);box-shadow:var(--sh);margin-bottom:12px;overflow:hidden}
-.card-hdr{padding:12px 16px;border-bottom:1px solid var(--fog);display:flex;justify-content:space-between;align-items:center;gap:8px}
-.card-hdr h3{font-size:14px;font-weight:700}
-.card-body{padding:14px 16px}
-.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}
-.stat-box{background:var(--white);border-radius:var(--r);box-shadow:var(--sh);padding:14px 16px}
-.stat-label{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px}
-.stat-val{font-size:22px;font-weight:800;margin:3px 0;letter-spacing:-.5px}
-.stat-sub{font-size:11px;color:var(--muted)}
-.stat-val.ok{color:var(--ok)}.stat-val.warn{color:var(--warn)}.stat-val.danger{color:var(--danger)}
-table{width:100%;border-collapse:collapse;font-size:13px}
-thead th{background:var(--soil);color:var(--cream);padding:9px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
-thead th:first-child{border-radius:var(--rs) 0 0 0}thead th:last-child{border-radius:0 var(--rs) 0 0}
-tbody tr{border-bottom:1px solid var(--fog)}
-tbody tr:hover{background:var(--cream)}
-tbody td{padding:9px 12px;vertical-align:middle}
-tfoot td{padding:9px 12px;font-weight:700;background:var(--fog);font-size:13px}
-.tag{font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;display:inline-block;white-space:nowrap}
-.tag-kale{background:#DCFCE7;color:#166534}
-.tag-swedes{background:#DBEAFE;color:#1D4ED8}
-.tag-fb{background:#E8D5F5;color:#6B21A8}
-.tag-lb{background:#FEF3C7;color:#92400E}
-.tag-maize{background:#FED7AA;color:#9A3412}
-.tag-clover{background:#D1FAE5;color:#065F46}
-.tag-rape{background:#FEF9C3;color:#854D0E}
-.tag-triticale{background:#E0E7FF;color:#3730A3}
-.tag-lucerne{background:#FCE7F3;color:#9D174D}
-.tag-ok{background:#DCFCE7;color:#166534}
-.tag-warn{background:#FEF3C7;color:#92400E}
-.tag-danger{background:#FEE2E2;color:#991B1B}
-.tag-info{background:#DBEAFE;color:#1D4ED8}
-.tag-muted{background:var(--fog);color:var(--muted)}
-.flag-card{border-left:3px solid var(--warn);padding:10px 14px;background:var(--white);border-radius:0 var(--rs) var(--rs) 0;margin-bottom:8px;font-size:13px}
-.flag-card.danger{border-left-color:var(--danger)}.flag-card.ok{border-left-color:var(--ok)}
-.flag-title{font-weight:700;margin-bottom:2px;font-size:13px}
-.flag-body{color:var(--muted);font-size:12px}
-.form-group{margin-bottom:14px}
-.form-group label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
-.form-group input,.form-group select,.form-group textarea{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--rs);font-size:14px;font-family:inherit;background:var(--cream);color:var(--text)}
-.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--grass);background:#fff}
-.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.form-row.thirds{grid-template-columns:1fr 1fr 1fr}
-.form-row.quarters{grid-template-columns:1fr 1fr 1fr 1fr}
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:center;justify-content:center}
-.modal-overlay.open{display:flex}
-.modal{background:var(--white);border-radius:var(--r);box-shadow:var(--shl);width:min(680px,96vw);max-height:90dvh;overflow-y:auto}
-.modal-hdr{padding:16px 20px;border-bottom:1px solid var(--fog);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--white);z-index:1}
-.modal-hdr h3{font-size:16px;font-weight:700}
-.modal-body{padding:20px}
-.modal-footer{padding:14px 20px;border-top:1px solid var(--fog);display:flex;justify-content:flex-end;gap:10px}
-.close-btn{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);padding:0 4px;line-height:1}
-.year-selector{display:flex;gap:6px;flex-wrap:wrap}
-.year-btn{padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);background:var(--white);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
-.year-btn.active{background:var(--soil);color:var(--cream);border-color:var(--soil)}
-.quality-bar{height:6px;border-radius:3px;background:var(--fog);overflow:hidden;margin-top:4px}
-.quality-fill{height:100%;border-radius:3px}
-.prog-bar{height:8px;border-radius:4px;background:var(--fog);overflow:hidden}
-.prog-fill{height:100%;border-radius:4px;transition:width .3s}
-.fill-ok{background:var(--ok)}.fill-warn{background:var(--warn)}.fill-danger{background:var(--danger)}.fill-sky{background:var(--sky)}
-.action-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap}
-.action-bar-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.search-input{padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--rs);font-size:13px;background:var(--white);width:220px}
-.search-input:focus{outline:none;border-color:var(--grass)}
-.table-wrap{overflow-x:auto;border-radius:var(--rs)}
-.icon-btn{background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:6px;font-size:13px;color:var(--muted);transition:background .15s}
-.icon-btn:hover{background:var(--fog)}
-.ai-notes{white-space:pre-wrap;font-size:13px;line-height:1.7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
-textarea.ai-edit{width:100%;min-height:400px;padding:14px;border:1.5px solid var(--border);border-radius:var(--rs);font-size:13px;font-family:inherit;line-height:1.7;background:var(--cream);resize:vertical}
-textarea.ai-edit:focus{outline:none;border-color:var(--grass)}
-.sil-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
-.sil-card{background:var(--white);border-radius:var(--r);box-shadow:var(--sh);padding:14px 16px}
-.sil-name{font-size:15px;font-weight:700;margin-bottom:2px}
-.sil-meta{font-size:11px;color:var(--muted);margin-bottom:10px}
-.sil-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px}
-.sil-stat{background:var(--cream);border-radius:6px;padding:6px 8px;text-align:center}
-.sil-stat-label{font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase}
-.sil-stat-val{font-size:14px;font-weight:800}
-.sync-log{font-size:11px;color:var(--muted);margin-top:8px}
-.settings-section{margin-bottom:24px}
-.settings-section h4{font-size:13px;font-weight:700;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--fog)}
-.disconnect-block{background:#FEE2E2;border-radius:var(--rs);padding:12px 16px;font-size:13px;margin-bottom:12px}
-.disconnect-block strong{color:var(--danger)}
-.empty-state{text-align:center;padding:40px 20px;color:var(--muted)}
-.empty-state p{font-size:14px;margin-bottom:12px}
-.yield-matrix th{min-width:90px}
-.yield-cell{text-align:right;font-size:12px}
-.yield-cell.above{background:#DCFCE7;color:#166534;font-weight:700}
-.yield-cell.below{background:#FEE2E2;color:#991B1B}
-.yield-cell.near{background:#FEF3C7;color:#92400E}
-@media(max-width:768px){
-  .header{padding:10px 12px 0}
-  .tab-panel{padding:12px}
-  .form-row,.form-row.thirds,.form-row.quarters{grid-template-columns:1fr 1fr}
-  .stat-grid{grid-template-columns:1fr 1fr}
-  .sil-grid{grid-template-columns:1fr}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; font-size: 14px; background: var(--straw); color: var(--text); }
+header {
+  background: var(--soil); color: #fff; height: var(--header-h);
+  display: flex; align-items: center; padding: 0 20px; gap: 16px; position: sticky; top: 0; z-index: 100;
 }
+header h1 { font-size: 18px; font-weight: 700; letter-spacing: -.5px; }
+header .sub { font-size: 11px; color: #9E9E9E; }
+header .spacer { flex: 1; }
+#sync-pill {
+  font-size: 11px; padding: 3px 10px; border-radius: 20px; background: #333; cursor: pointer;
+}
+#sync-pill.ok { background: var(--ok); }
+#sync-pill.warn { background: var(--warn); }
+#sync-pill.info { background: var(--info); }
+nav {
+  background: var(--leaf); display: flex; overflow-x: auto; padding: 0 12px;
+  position: sticky; top: var(--header-h); z-index: 99; scrollbar-width: none;
+}
+nav::-webkit-scrollbar { display: none; }
+nav button {
+  background: none; border: none; color: rgba(255,255,255,.7); font-size: 13px; font-weight: 500;
+  padding: 0 16px; height: var(--tab-h); cursor: pointer; white-space: nowrap; border-bottom: 3px solid transparent;
+}
+nav button.active { color: #fff; border-bottom-color: var(--lime); }
+nav button:hover { color: #fff; }
+main { padding: 16px; max-width: 1400px; margin: 0 auto; }
+.tab { display: none; }
+.tab.active { display: block; }
+
+/* Cards */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.card { background: var(--card); border-radius: 8px; padding: 16px; border: 1px solid var(--border); }
+.card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+.card .value { font-size: 28px; font-weight: 700; line-height: 1; }
+.card .sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.card.surplus .value { color: var(--ok); }
+.card.deficit .value { color: var(--danger); }
+
+/* Tables */
+.tbl-wrap { background: var(--card); border-radius: 8px; border: 1px solid var(--border); overflow: auto; margin-bottom: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { background: var(--soil); color: #fff; padding: 8px 10px; text-align: left; font-weight: 600; font-size: 12px; white-space: nowrap; }
+td { padding: 7px 10px; border-bottom: 1px solid #F0F0F0; vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #FAFAFA; }
+.section-row td { background: #F5F5F5; font-weight: 600; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.total-row td { background: var(--soil); color: #fff; font-weight: 700; }
+
+/* Inline edit inputs */
+td input, td select {
+  border: 1px solid transparent; padding: 2px 4px; width: 100%; background: transparent;
+  font-size: 13px; font-family: inherit; color: inherit; border-radius: 3px;
+}
+td input:focus, td select:focus { border-color: var(--lime); outline: none; background: #fff; }
+td input.num { text-align: right; }
+
+/* Buttons */
+.btn { padding: 7px 14px; border-radius: 6px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn-primary { background: var(--leaf); color: #fff; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.del-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 0 4px; }
+.del-btn:hover { color: var(--danger); }
+.add-row { padding: 8px 12px; text-align: left; border-top: 1px solid var(--border); }
+.add-row button { background: none; border: none; color: var(--leaf); cursor: pointer; font-size: 13px; font-weight: 600; }
+.add-row button:hover { text-decoration: underline; }
+
+/* Feed budget bars */
+.fb-section { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+@media (max-width: 900px) { .fb-section { grid-template-columns: 1fr; } }
+.fb-box { background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
+.fb-box-hdr { background: var(--soil); color: #fff; padding: 10px 14px; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 13px; display: flex; justify-content: space-between; }
+.fb-summary { background: var(--card); border-radius: 8px; border: 1px solid var(--border); padding: 16px; margin-bottom: 16px; display: flex; gap: 32px; align-items: center; flex-wrap: wrap; }
+.fb-bar-wrap { flex: 1; min-width: 200px; }
+.fb-bar { height: 20px; background: #EEE; border-radius: 10px; overflow: hidden; }
+.fb-bar-fill { height: 100%; border-radius: 10px; background: var(--ok); transition: width .3s; }
+.fb-bar-fill.over { background: var(--warn); }
+.flags-box { background: var(--card); border-radius: 8px; border: 1px solid var(--border); padding: 0; margin-bottom: 16px; overflow: hidden; }
+.flags-box-hdr { background: var(--soil); color: #fff; padding: 10px 14px; font-weight: 700; font-size: 13px; }
+.flag-item { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: flex-start; }
+.flag-item:last-child { border-bottom: none; }
+.flag-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+.flag-dot.red { background: var(--danger); }
+.flag-dot.amber { background: var(--warn); }
+.flag-dot.green { background: var(--ok); }
+.flag-title { font-weight: 600; font-size: 13px; }
+.flag-desc { font-size: 12px; color: var(--muted); }
+.no-flags { padding: 16px 14px; color: var(--muted); font-style: italic; font-size: 13px; }
+
+/* Toolbar */
+.toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+.toolbar .spacer { flex: 1; }
+#sync-log { font-size: 11px; color: var(--muted); }
+
+/* Tag chips */
+.tag { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.tag-kale { background: #E8F5E9; color: #1B5E20; }
+.tag-swedes { background: #FFF3E0; color: #E65100; }
+.tag-beet { background: #FCE4EC; color: #880E4F; }
+.tag-maize { background: #FFFDE7; color: #F57F17; }
+.tag-rape { background: #F3E5F5; color: #4A148C; }
+.tag-triticale { background: #E3F2FD; color: #0D47A1; }
+.tag-clover { background: #E0F2F1; color: #004D40; }
+.tag-other { background: #ECEFF1; color: #37474F; }
+
+/* Settings / AI */
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 700px; }
+@media (max-width: 600px) { .settings-grid { grid-template-columns: 1fr; } }
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: var(--muted); }
+.form-group input, .form-group textarea, .form-group select {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 13px; font-family: inherit;
+}
+.form-group textarea { min-height: 160px; resize: vertical; font-family: monospace; font-size: 12px; }
+.section-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid var(--lime); display: flex; justify-content: space-between; align-items: center; }
 </style>
 </head>
 <body>
-<div class="header">
-  <div class="header-top">
-    <div>
-      <h1>PFE Cropping</h1>
-      <div class="header-sub" id="hdr-sub">Loading…</div>
-    </div>
-    <div class="hdr-right">
-      <span id="sync-pill" class="pill pill-muted">Offline</span>
-      <button class="btn btn-ghost btn-sm" onclick="manualSync()">Sync</button>
-      <button class="btn btn-ghost btn-sm" onclick="showTab('settings')">Settings</button>
-    </div>
-  </div>
-  <div class="tabs">
-    <button class="tab-btn active" onclick="showTab('dashboard')" id="tbtn-dashboard">Dashboard</button>
-    <button class="tab-btn" onclick="showTab('cropplan')" id="tbtn-cropplan">Crop Plan</button>
-    <button class="tab-btn" onclick="showTab('yields')" id="tbtn-yields">Yield History</button>
-    <button class="tab-btn" onclick="showTab('silage')" id="tbtn-silage">Silage</button>
-    <button class="tab-btn" onclick="showTab('budget')" id="tbtn-budget">Budget</button>
-    <button class="tab-btn" onclick="showTab('paddocks')" id="tbtn-paddocks">Paddocks</button>
-    <button class="tab-btn" onclick="showTab('ai')" id="tbtn-ai">AI Advisor</button>
-    <button class="tab-btn" onclick="showTab('settings')" id="tbtn-settings">Settings</button>
-  </div>
-</div>
 
-<div class="main">
+<header>
+  <div>
+    <h1>PFE Cropping</h1>
+    <div class="sub" id="hdr-sub">Loading...</div>
+  </div>
+  <div class="spacer"></div>
+  <span id="sync-log"></span>
+  <div id="sync-pill" onclick="manualSync()">Offline</div>
+</header>
 
-<!-- DASHBOARD -->
-<div id="tab-dashboard" class="tab-panel active">
-  <div id="dash-stats" class="stat-grid"></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-    <div>
-      <div class="card">
-        <div class="card-hdr"><h3>Crop Programme Summary</h3><span id="dash-year-label" class="tag tag-info"></span></div>
-        <div class="card-body" id="dash-crop-summary"></div>
-      </div>
-    </div>
-    <div>
-      <div class="card">
-        <div class="card-hdr"><h3>Flags</h3></div>
-        <div class="card-body" id="dash-flags"></div>
-      </div>
-    </div>
-  </div>
-  <div class="card">
-    <div class="card-hdr"><h3>AI Advisor — Current Notes</h3></div>
-    <div class="card-body"><div id="dash-ai-preview" class="ai-notes" style="max-height:180px;overflow:hidden;mask-image:linear-gradient(to bottom,#000 70%,transparent)"></div><button class="btn btn-ghost btn-sm" style="margin-top:8px;background:var(--fog);color:var(--text)" onclick="showTab('ai')">View full AI notes</button></div>
-  </div>
-</div>
+<nav>
+  <button class="active" onclick="showTab('dashboard')">Dashboard</button>
+  <button onclick="showTab('crop')">Crop Plan</button>
+  <button onclick="showTab('stock')">Stock Req</button>
+  <button onclick="showTab('feed')">Feed Budget</button>
+  <button onclick="showTab('financial')">Financial</button>
+  <button onclick="showTab('history')">History</button>
+  <button onclick="showTab('ai')">AI Advisor</button>
+  <button onclick="showTab('settings')">Settings</button>
+</nav>
 
-<!-- CROP PLAN -->
-<div id="tab-cropplan" class="tab-panel">
-  <div class="action-bar">
-    <div class="action-bar-left">
-      <div class="year-selector" id="cp-years"></div>
-    </div>
-    <button class="btn btn-primary" onclick="openCropModal()">+ Add Paddock</button>
-  </div>
-  <div id="cp-summary" class="stat-grid" style="margin-bottom:14px"></div>
-  <div class="card">
-    <div class="table-wrap">
-      <table id="cp-table">
-        <thead><tr>
-          <th>Paddock</th><th>Crop</th><th>Ha</th>
-          <th>Yield Budget<br><span style="font-weight:400;text-transform:none">kg/ha fresh</span></th>
-          <th>Yield Actual<br><span style="font-weight:400;text-transform:none">kg/ha fresh</span></th>
-          <th>DM Budget<br><span style="font-weight:400;text-transform:none">kg DM</span></th>
-          <th>Cost/ha</th><th>Total Cost</th><th>Notes</th><th></th>
-        </tr></thead>
-        <tbody id="cp-tbody"></tbody>
-        <tfoot id="cp-tfoot"></tfoot>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- YIELD HISTORY -->
-<div id="tab-yields" class="tab-panel">
-  <div class="card">
-    <div class="card-hdr">
-      <h3>Yield History — Actuals vs Budget</h3>
-      <div style="font-size:12px;color:var(--muted)">
-        <span class="tag tag-ok" style="margin-right:4px">≥100%</span>
-        <span class="tag tag-warn" style="margin-right:4px">90–99%</span>
-        <span class="tag tag-danger">Below 90%</span>
-      </div>
-    </div>
-    <div class="card-body table-wrap" id="yield-matrix-wrap"></div>
-  </div>
-</div>
-
-<!-- SILAGE -->
-<div id="tab-silage" class="tab-panel">
-  <div class="action-bar">
-    <div class="action-bar-left">
-      <div style="font-size:13px;color:var(--muted)" id="sil-totals"></div>
-    </div>
-    <button class="btn btn-primary" onclick="openSilageModal()">+ Add Stack</button>
-  </div>
-  <div id="sil-cards" class="sil-grid"></div>
-  <div class="card" style="margin-top:4px">
-    <div class="card-hdr"><h3>Ha to Cut Calculator</h3></div>
-    <div class="card-body">
-      <div class="form-row">
-        <div class="form-group">
-          <label>Target DM to harvest (kg DM)</label>
-          <input type="number" id="cut-target" value="800000" oninput="calcCut()">
-        </div>
-        <div class="form-group">
-          <label>Crop type</label>
-          <select id="cut-crop" onchange="calcCut()">
-            <option value="grass">Grass silage (4,500 kg DM/ha)</option>
-            <option value="maize">Maize silage (6,000 kg DM/ha)</option>
-            <option value="lucerne">Lucerne (4,000 kg DM/ha)</option>
-            <option value="baleage">Baleage (3,500 kg DM/ha)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Utilisation %</label>
-          <input type="number" id="cut-util" value="85" oninput="calcCut()">
-        </div>
-      </div>
-      <div id="cut-result" style="font-size:15px;font-weight:700;color:var(--soil);margin-top:8px"></div>
-    </div>
-  </div>
-</div>
-
-<!-- BUDGET -->
-<div id="tab-budget" class="tab-panel">
-  <div class="action-bar">
-    <div class="action-bar-left"><div class="year-selector" id="bud-years"></div></div>
-  </div>
-  <div id="bud-summary" class="stat-grid" style="margin-bottom:14px"></div>
-  <div class="card">
-    <div class="table-wrap">
-      <table id="bud-table">
-        <thead><tr>
-          <th>Paddock</th><th>Crop</th><th>Ha</th>
-          <th>Seed</th><th>Chem</th><th>Fert</th><th>Ops</th>
-          <th>Budget Total</th><th>Actual Total</th><th>Variance</th><th></th>
-        </tr></thead>
-        <tbody id="bud-tbody"></tbody>
-        <tfoot id="bud-tfoot"></tfoot>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- PADDOCKS -->
-<div id="tab-paddocks" class="tab-panel">
-  <div class="action-bar">
-    <div class="action-bar-left">
-      <input type="text" class="search-input" id="pad-search" placeholder="Search paddock…" oninput="renderPaddocks()">
-    </div>
-    <button class="btn btn-primary" onclick="openPaddockModal()">+ Add Paddock</button>
-  </div>
-  <div class="card">
-    <div class="table-wrap">
-      <table id="pad-table">
-        <thead><tr>
-          <th>Paddock</th><th>Area ha</th><th>pH</th><th>Olsen P</th><th>K</th><th>S</th>
-          <th>Current Crop</th><th>Flags</th><th></th>
-        </tr></thead>
-        <tbody id="pad-tbody"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- AI ADVISOR -->
-<div id="tab-ai" class="tab-panel">
-  <div style="display:grid;grid-template-columns:1fr 340px;gap:14px;align-items:start">
-    <div>
-      <div class="card">
-        <div class="card-hdr">
-          <h3>AI Advisor Notes</h3>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-sm" style="background:var(--fog);color:var(--text)" id="ai-edit-btn" onclick="toggleAIEdit()">Edit</button>
-            <button class="btn btn-primary btn-sm" id="ai-save-btn" onclick="saveAINotes()" style="display:none">Save</button>
-          </div>
-        </div>
-        <div class="card-body">
-          <div id="ai-view" class="ai-notes"></div>
-          <textarea id="ai-edit" class="ai-edit" style="display:none"></textarea>
-        </div>
-      </div>
-    </div>
-    <div>
-      <div class="card">
-        <div class="card-hdr"><h3>Auto-Flags</h3></div>
-        <div class="card-body" id="ai-flags"></div>
-      </div>
-      <div class="card" style="margin-top:12px">
-        <div class="card-hdr"><h3>Yield Predictions</h3></div>
-        <div class="card-body">
-          <table style="font-size:12px">
-            <thead><tr><th style="background:var(--soil);color:var(--cream);padding:6px 10px">Crop</th><th style="background:var(--soil);color:var(--cream);padding:6px 10px">Budget kg/ha</th><th style="background:var(--soil);color:var(--cream);padding:6px 10px">AI Prediction</th></tr></thead>
-            <tbody id="yield-pred-tbody"></tbody>
-          </table>
-          <div style="font-size:11px;color:var(--muted);margin-top:8px">Predictions based on soil tests, crop history, and historical yields. Update after inspection.</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- SETTINGS -->
-<div id="tab-settings" class="tab-panel">
-  <div style="max-width:600px">
-    <div class="card">
-      <div class="card-hdr"><h3>Google Sheets Sync</h3></div>
-      <div class="card-body">
-        <div class="disconnect-block">
-          <strong>Safety:</strong> Disconnect sync before any testing. The preview server hits the real Sheets endpoint.
-        </div>
-        <div class="form-group">
-          <label>Apps Script Web App URL</label>
-          <input type="url" id="settings-url" placeholder="https://script.google.com/macros/s/…/exec">
-        </div>
-        <div class="form-group">
-          <label>Current Season</label>
-          <select id="settings-year">
-            <option>2022</option><option>2023</option><option>2024/25</option>
-            <option>2025/26</option><option value="2026/27" selected>2026/27</option>
-          </select>
-        </div>
-        <div style="display:flex;gap:10px;margin-top:4px">
-          <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
-          <button class="btn" style="background:var(--danger);color:#fff" onclick="disconnectSync()">Disconnect Sync</button>
-        </div>
-        <div class="sync-log" id="sync-log"></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-hdr"><h3>Deploy Guide</h3></div>
-      <div class="card-body" style="font-size:13px;line-height:1.7;color:var(--muted)">
-        <ol style="padding-left:18px">
-          <li>Open the Google Sheet</li>
-          <li>Extensions &gt; Apps Script</li>
-          <li>Paste in the contents of <code>Code.gs</code> (from <code>C:\Users\BrendonGraham\cropping-app\Code.gs</code>)</li>
-          <li>Save, then Deploy &gt; New deployment</li>
-          <li>Type: Web app | Execute as: Me | Access: Anyone</li>
-          <li>Authorise when prompted</li>
-          <li>Copy the web app URL and paste above</li>
-          <li>Click Save Settings, then Sync</li>
-        </ol>
-      </div>
-    </div>
-  </div>
-</div>
-
-</div><!-- /main -->
-
-<!-- CROP MODAL -->
-<div class="modal-overlay" id="crop-modal-overlay">
-  <div class="modal">
-    <div class="modal-hdr">
-      <h3 id="crop-modal-title">Add Paddock</h3>
-      <button class="close-btn" onclick="closeCropModal()">×</button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="cm-id">
-      <div class="form-row">
-        <div class="form-group">
-          <label>Paddock</label>
-          <input type="text" id="cm-paddock" list="paddock-list" placeholder="Paddock name">
-          <datalist id="paddock-list"></datalist>
-        </div>
-        <div class="form-group">
-          <label>Year</label>
-          <select id="cm-year">
-            <option>2022</option><option>2023</option><option>2024/25</option>
-            <option>2025/26</option><option selected>2026/27</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Crop</label>
-          <select id="cm-crop" onchange="onCropChange()">
-            <option>Kale</option><option>Swedes</option><option>Fodder Beet</option>
-            <option>Lifting Beet</option><option>Maize</option><option>Clover</option>
-            <option>Lucerne</option><option>Rape</option><option>Triticale</option>
-            <option>Winterstar</option><option>Pasture</option><option>Other</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Area (ha)</label>
-          <input type="number" id="cm-ha" step="0.1" min="0">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Yield Budget (kg/ha fresh)</label>
-          <input type="number" id="cm-yield-budget" step="100">
-        </div>
-        <div class="form-group">
-          <label>Yield Actual (kg/ha fresh)</label>
-          <input type="number" id="cm-yield-actual" step="100" placeholder="Leave blank if not yet harvested">
-        </div>
-      </div>
-      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Costs ($/ha)</div>
-      <div class="form-row quarters">
-        <div class="form-group"><label>Seed</label><input type="number" id="cm-seed" step="1"></div>
-        <div class="form-group"><label>Chem</label><input type="number" id="cm-chem" step="1"></div>
-        <div class="form-group"><label>Fert</label><input type="number" id="cm-fert" step="1"></div>
-        <div class="form-group"><label>Operations</label><input type="number" id="cm-ops" step="1"></div>
-      </div>
-      <div class="form-group">
-        <label>Notes</label>
-        <input type="text" id="cm-notes" placeholder="Any notes…">
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-danger btn-sm" id="cm-delete-btn" onclick="deleteCropRecord()" style="margin-right:auto;display:none">Delete</button>
-      <button class="btn btn-sm" style="background:var(--fog);color:var(--text)" onclick="closeCropModal()">Cancel</button>
-      <button class="btn btn-primary btn-sm" onclick="saveCropRecord()">Save</button>
-    </div>
-  </div>
-</div>
-
-<!-- SILAGE MODAL -->
-<div class="modal-overlay" id="sil-modal-overlay">
-  <div class="modal">
-    <div class="modal-hdr">
-      <h3 id="sil-modal-title">Add Silage Stack</h3>
-      <button class="close-btn" onclick="closeSilageModal()">×</button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="sm-id">
-      <div class="form-row">
-        <div class="form-group">
-          <label>Stack Name</label>
-          <input type="text" id="sm-name" placeholder="e.g. Right Front Grass">
-        </div>
-        <div class="form-group">
-          <label>Type</label>
-          <select id="sm-type">
-            <option>Grass Silage</option><option>Maize Silage</option>
-            <option>Lucerne Silage</option><option>Baleage</option>
-            <option>Clover Silage</option><option>Mixed Silage</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>Season</label><input type="text" id="sm-season" placeholder="e.g. 2025"></div>
-        <div class="form-group"><label>DM %</label><input type="number" id="sm-dm" step="0.1" min="0" max="100"></div>
-      </div>
-      <div class="form-row thirds">
-        <div class="form-group"><label>ME (MJ/kgDM)</label><input type="number" id="sm-me" step="0.1"></div>
-        <div class="form-group"><label>CP (%DM)</label><input type="number" id="sm-cp" step="0.1"></div>
-        <div class="form-group"><label>pH</label><input type="number" id="sm-ph" step="0.1" min="3" max="7"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>Lactic Acid (%DM)</label><input type="number" id="sm-lactic" step="0.1"></div>
-        <div class="form-group">
-          <label>Quality Rating</label>
-          <select id="sm-quality">
-            <option>Excellent</option><option>Good</option><option>Acceptable</option><option>Poor</option><option>Very Poor</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>Opening kg DM</label><input type="number" id="sm-opening" step="1000"></div>
-        <div class="form-group"><label>Current kg DM</label><input type="number" id="sm-current" step="1000"></div>
-      </div>
-      <div class="form-group"><label>Notes</label><textarea id="sm-notes" rows="2"></textarea></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-danger btn-sm" id="sm-delete-btn" onclick="deleteSilageStack()" style="margin-right:auto;display:none">Delete</button>
-      <button class="btn btn-sm" style="background:var(--fog);color:var(--text)" onclick="closeSilageModal()">Cancel</button>
-      <button class="btn btn-primary btn-sm" onclick="saveSilageStack()">Save</button>
-    </div>
-  </div>
-</div>
-
-<!-- PADDOCK MODAL -->
-<div class="modal-overlay" id="pad-modal-overlay">
-  <div class="modal">
-    <div class="modal-hdr">
-      <h3 id="pad-modal-title">Paddock Register</h3>
-      <button class="close-btn" onclick="closePaddockModal()">×</button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="pm-id">
-      <div class="form-row">
-        <div class="form-group"><label>Paddock Name</label><input type="text" id="pm-name"></div>
-        <div class="form-group"><label>Area (ha)</label><input type="number" id="pm-area" step="0.1"></div>
-      </div>
-      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Soil Test Results</div>
-      <div class="form-row quarters">
-        <div class="form-group"><label>pH</label><input type="number" id="pm-ph" step="0.1"></div>
-        <div class="form-group"><label>Olsen P</label><input type="number" id="pm-p" step="1"></div>
-        <div class="form-group"><label>K</label><input type="number" id="pm-k" step="1"></div>
-        <div class="form-group"><label>S</label><input type="number" id="pm-s" step="1"></div>
-      </div>
-      <div class="form-group"><label>Notes</label><textarea id="pm-notes" rows="2"></textarea></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-danger btn-sm" id="pm-delete-btn" onclick="deletePaddock()" style="margin-right:auto;display:none">Delete</button>
-      <button class="btn btn-sm" style="background:var(--fog);color:var(--text)" onclick="closePaddockModal()">Cancel</button>
-      <button class="btn btn-primary btn-sm" onclick="savePaddock()">Save</button>
-    </div>
-  </div>
-</div>
+<main>
+  <div id="tab-dashboard" class="tab active"></div>
+  <div id="tab-crop" class="tab"></div>
+  <div id="tab-stock" class="tab"></div>
+  <div id="tab-feed" class="tab"></div>
+  <div id="tab-financial" class="tab"></div>
+  <div id="tab-history" class="tab"></div>
+  <div id="tab-ai" class="tab"></div>
+  <div id="tab-settings" class="tab"></div>
+</main>
 
 <script>
-// ── CONSTANTS ──────────────────────────────────────────────────────────────
-const APP_VERSION = '1.0';
-const YEARS = ['2022','2023','2024/25','2025/26','2026/27'];
-const CROPS = ['Kale','Swedes','Fodder Beet','Lifting Beet','Maize','Clover','Lucerne','Rape','Triticale','Winterstar','Pasture','Other'];
+// -- CONSTANTS --
+const APP_VER = '2.0';
+const NS = 'crop2_';
+const YEAR = '2026/27';
 
+const CROPS = ['Kale','Swedes','Fodder Beet','Lifting Beet','Maize','Rape','Triticale','Clover','Other'];
+
+// Gross margin templates ($/ha defaults from spreadsheet)
+const GM = {
+  'Kale':        { yieldKgHA: 12000, seedHA: 147,  chemHA: 435,  fertHA: 566, opsHA: 295 },
+  'Swedes':      { yieldKgHA: 14000, seedHA: 240,  chemHA: 543,  fertHA: 535, opsHA: 395 },
+  'Fodder Beet': { yieldKgHA: 20000, seedHA: 430,  chemHA: 1078, fertHA: 335, opsHA: 378 },
+  'Lifting Beet':{ yieldKgHA: 16000, seedHA: 521,  chemHA: 1078, fertHA: 335, opsHA: 378 },
+  'Maize':       { yieldKgHA: 18000, seedHA: 999,  chemHA: 326,  fertHA: 892, opsHA: 525 },
+  'Rape':        { yieldKgHA: 8000,  seedHA: 195,  chemHA: 195,  fertHA: 163, opsHA: 160 },
+  'Triticale':   { yieldKgHA: 6000,  seedHA: 250,  chemHA: 195,  fertHA: 163, opsHA: 160 },
+  'Clover':      { yieldKgHA: 8000,  seedHA: 80,   chemHA: 120,  fertHA: 200, opsHA: 180 },
+  'Other':       { yieldKgHA: 10000, seedHA: 200,  chemHA: 300,  fertHA: 300, opsHA: 300 },
+};
+
+// DM% per crop (fresh weight to dry matter)
 const DM_PCT = {
-  'Kale':0.13,'Swedes':0.105,'Fodder Beet':0.11,'Lifting Beet':0.11,
-  'Maize':0.32,'Clover':0.20,'Lucerne':0.25,'Rape':0.13,'Triticale':0.30,
-  'Winterstar':0.12,'Pasture':0.20,'Other':0.15
+  'Kale': 0.13, 'Swedes': 0.12, 'Fodder Beet': 0.17, 'Lifting Beet': 0.17,
+  'Maize': 0.32, 'Rape': 0.13, 'Triticale': 0.87, 'Clover': 0.25, 'Other': 0.15
 };
-const YIELD_DEFAULT = {
-  'Kale':10000,'Swedes':15000,'Fodder Beet':20000,'Lifting Beet':16000,
-  'Maize':18000,'Winterstar':3000,'Clover':8000,'Lucerne':8000,'Rape':8000,'Triticale':6000
-};
-const COST_DEFAULT = {
-  'Kale':      {seed:147,chem:435,fert:566,ops:295},
-  'Swedes':    {seed:240,chem:543,fert:535,ops:395},
-  'Fodder Beet':{seed:430,chem:1078,fert:335,ops:378},
-  'Lifting Beet':{seed:522,chem:1078,fert:335,ops:378},
-  'Maize':     {seed:999,chem:326,fert:893,ops:525},
-  'Clover':    {seed:216,chem:566,fert:199,ops:105},
-  'Lucerne':   {seed:350,chem:274,fert:186,ops:103},
-  'Rape':      {seed:90,chem:195,fert:163,ops:89},
-  'Triticale': {seed:250,chem:195,fert:163,ops:82},
-  'Winterstar':{seed:149,chem:195,fert:163,ops:79},
-};
+
 const CROP_TAG = {
-  'Kale':'tag-kale','Swedes':'tag-swedes','Fodder Beet':'tag-fb','Lifting Beet':'tag-lb',
-  'Maize':'tag-maize','Clover':'tag-clover','Lucerne':'tag-lucerne','Rape':'tag-rape',
-  'Triticale':'tag-triticale','Winterstar':'tag-warn','Pasture':'tag-ok','Other':'tag-muted'
+  'Kale':'tag-kale','Swedes':'tag-swedes','Fodder Beet':'tag-beet','Lifting Beet':'tag-beet',
+  'Maize':'tag-maize','Rape':'tag-rape','Triticale':'tag-triticale','Clover':'tag-clover','Other':'tag-other'
 };
 
-const DEFAULT_PROGRAMME = [
-  // 2026/27 Kale
-  {id:'k01',paddock:'Thames Valley',year:'2026/27',crop:'Kale',ha:4.0,yieldBudget:10000,yieldActual:null,costSeed:147,costChem:435,costFert:566,costOps:295,notes:''},
-  {id:'k02',paddock:'East Coast',year:'2026/27',crop:'Kale',ha:4.5,yieldBudget:10000,yieldActual:null,costSeed:147,costChem:435,costFert:566,costOps:295,notes:''},
-  {id:'k03',paddock:'Poverty Bay',year:'2026/27',crop:'Kale',ha:5.5,yieldBudget:10000,yieldActual:null,costSeed:147,costChem:435,costFert:566,costOps:295,notes:''},
-  {id:'k04',paddock:'Bottom 60',year:'2026/27',crop:'Kale',ha:6.8,yieldBudget:10000,yieldActual:null,costSeed:147,costChem:435,costFert:566,costOps:295,notes:'Over-used as at June 2026 — monitor remaining supply'},
-  {id:'k05',paddock:'King Country',year:'2026/27',crop:'Kale',ha:5.2,yieldBudget:10000,yieldActual:null,costSeed:147,costChem:435,costFert:566,costOps:295,notes:''},
-  {id:'k06',paddock:'North Harbour',year:'2026/27',crop:'Kale',ha:4.1,yieldBudget:10000,yieldActual:null,costSeed:147,costChem:435,costFert:566,costOps:295,notes:''},
-  {id:'k07',paddock:'Wanganui',year:'2026/27',crop:'Kale',ha:5.0,yieldBudget:10000,yieldActual:null,costSeed:147,costChem:435,costFert:566,costOps:295,notes:''},
-  {id:'k08',paddock:'Bull',year:'2026/27',crop:'Kale',ha:4.4,yieldBudget:10000,yieldActual:null,costSeed:147,costChem:435,costFert:566,costOps:295,notes:''},
-  {id:'k09',paddock:'Bens',year:'2026/27',crop:'Kale',ha:3.8,yieldBudget:10000,yieldActual:null,costSeed:147,costChem:435,costFert:566,costOps:295,notes:''},
-  {id:'k10',paddock:'Waikato',year:'2026/27',crop:'Kale',ha:2.5,yieldBudget:10000,yieldActual:null,costSeed:147,costChem:435,costFert:566,costOps:295,notes:'13t supplement shortfall reported — Waikato paddock short'},
-  // 2026/27 Swedes
-  {id:'s01',paddock:'Ryans',year:'2026/27',crop:'Swedes',ha:4.6,yieldBudget:15000,yieldActual:null,costSeed:240,costChem:543,costFert:535,costOps:395,notes:''},
-  {id:'s02',paddock:'River 1',year:'2026/27',crop:'Swedes',ha:6.2,yieldBudget:15000,yieldActual:null,costSeed:240,costChem:543,costFert:535,costOps:395,notes:'Low Olsen P (14) — fertilise with P pre-crop'},
-  {id:'s03',paddock:'River 2',year:'2026/27',crop:'Swedes',ha:5.8,yieldBudget:15000,yieldActual:null,costSeed:240,costChem:543,costFert:535,costOps:395,notes:'pH 5.3 — consider lime'},
-  {id:'s04',paddock:'Horsfall 2',year:'2026/27',crop:'Swedes',ha:5.9,yieldBudget:15000,yieldActual:null,costSeed:240,costChem:543,costFert:535,costOps:395,notes:''},
-  {id:'s05',paddock:'Horsfall 3',year:'2026/27',crop:'Swedes',ha:6.1,yieldBudget:15000,yieldActual:null,costSeed:240,costChem:543,costFert:535,costOps:395,notes:'pH 5.7 — borderline'},
-  {id:'s06',paddock:'Cattle Yards 3',year:'2026/27',crop:'Swedes',ha:5.2,yieldBudget:15000,yieldActual:null,costSeed:240,costChem:543,costFert:535,costOps:395,notes:'pH 5.4 — consider lime'},
-  // 2026/27 Fodder Beet
-  {id:'f01',paddock:'Woodings',year:'2026/27',crop:'Fodder Beet',ha:4.8,yieldBudget:20000,yieldActual:null,costSeed:430,costChem:1078,costFert:335,costOps:378,notes:'pH 5.4 — low'},
-  {id:'f02',paddock:'Deershed Drive',year:'2026/27',crop:'Fodder Beet',ha:4.2,yieldBudget:20000,yieldActual:null,costSeed:430,costChem:1078,costFert:335,costOps:378,notes:'Olsen P 55 — very high. pH 5.8 — good'},
-  {id:'f03',paddock:'Two Tanks 2',year:'2026/27',crop:'Fodder Beet',ha:5.0,yieldBudget:20000,yieldActual:null,costSeed:430,costChem:1078,costFert:335,costOps:378,notes:''},
-  {id:'f04',paddock:'McKerchers',year:'2026/27',crop:'Fodder Beet',ha:4.35,yieldBudget:20000,yieldActual:null,costSeed:430,costChem:1078,costFert:335,costOps:378,notes:''},
-  // 2026/27 Lifting Beet
-  {id:'l01',paddock:'Sowbie 1',year:'2026/27',crop:'Lifting Beet',ha:4.6,yieldBudget:16000,yieldActual:null,costSeed:522,costChem:1078,costFert:335,costOps:378,notes:''},
-  {id:'l02',paddock:'Sowbie 2',year:'2026/27',crop:'Lifting Beet',ha:4.3,yieldBudget:16000,yieldActual:null,costSeed:522,costChem:1078,costFert:335,costOps:378,notes:''},
-  {id:'l03',paddock:'Sowbie 3',year:'2026/27',crop:'Lifting Beet',ha:4.8,yieldBudget:16000,yieldActual:null,costSeed:522,costChem:1078,costFert:335,costOps:378,notes:''},
-  // 2026/27 Maize
-  {id:'m01',paddock:'River 3',year:'2026/27',crop:'Maize',ha:4.8,yieldBudget:18000,yieldActual:null,costSeed:999,costChem:326,costFert:893,costOps:525,notes:'pH 5.4 — borderline for maize'},
-  {id:'m02',paddock:'River 4',year:'2026/27',crop:'Maize',ha:5.1,yieldBudget:18000,yieldActual:null,costSeed:999,costChem:326,costFert:893,costOps:525,notes:'Very low K (3) — apply K fert pre-sow'},
-  {id:'m03',paddock:'River 5',year:'2026/27',crop:'Maize',ha:4.7,yieldBudget:18000,yieldActual:null,costSeed:999,costChem:326,costFert:893,costOps:525,notes:''},
-  {id:'m04',paddock:'Golden Willow 3',year:'2026/27',crop:'Maize',ha:4.2,yieldBudget:18000,yieldActual:null,costSeed:999,costChem:326,costFert:893,costOps:525,notes:''},
-  {id:'m05',paddock:'Golden Willow 4',year:'2026/27',crop:'Maize',ha:3.9,yieldBudget:18000,yieldActual:null,costSeed:999,costChem:326,costFert:893,costOps:525,notes:''},
-  // 2026/27 Other
-  {id:'c01',paddock:'Top Walnut',year:'2026/27',crop:'Clover',ha:4.8,yieldBudget:8000,yieldActual:null,costSeed:216,costChem:566,costFert:199,costOps:105,notes:''},
-  {id:'c02',paddock:'Top Stump',year:'2026/27',crop:'Clover',ha:4.7,yieldBudget:8000,yieldActual:null,costSeed:216,costChem:566,costFert:199,costOps:105,notes:''},
-  {id:'r01',paddock:'Horsfall 1',year:'2026/27',crop:'Rape',ha:5.2,yieldBudget:8000,yieldActual:null,costSeed:90,costChem:195,costFert:163,costOps:89,notes:''},
-  {id:'r02',paddock:'Horsfall 4',year:'2026/27',crop:'Rape',ha:5.1,yieldBudget:8000,yieldActual:null,costSeed:90,costChem:195,costFert:163,costOps:89,notes:''},
-  {id:'t01',paddock:'One Tree',year:'2026/27',crop:'Triticale',ha:4.8,yieldBudget:6000,yieldActual:null,costSeed:250,costChem:195,costFert:163,costOps:82,notes:''},
-  // 2022 Actuals — Fodder Beet (grazing)
-  {id:'a01',paddock:'Bondis',year:'2022',crop:'Fodder Beet',ha:3.4,yieldBudget:22000,yieldActual:19500,costSeed:430,costChem:1078,costFert:335,costOps:378,notes:'2022 actual'},
-  {id:'a02',paddock:'Mothering Up',year:'2022',crop:'Fodder Beet',ha:5.3,yieldBudget:22000,yieldActual:21500,costSeed:430,costChem:1078,costFert:335,costOps:378,notes:'2022 actual'},
-  {id:'a03',paddock:'Oaks 1',year:'2022',crop:'Fodder Beet',ha:4.2,yieldBudget:22000,yieldActual:22500,costSeed:430,costChem:1078,costFert:335,costOps:378,notes:'2022 actual'},
-  {id:'a04',paddock:'Oaks 2',year:'2022',crop:'Fodder Beet',ha:5.4,yieldBudget:22000,yieldActual:25000,costSeed:430,costChem:1078,costFert:335,costOps:378,notes:'2022 actual'},
-  {id:'a05',paddock:'Pump 3',year:'2022',crop:'Fodder Beet',ha:3.7,yieldBudget:22000,yieldActual:24500,costSeed:430,costChem:1078,costFert:335,costOps:378,notes:'2022 actual'},
-  {id:'a06',paddock:'Top Walnut',year:'2022',crop:'Fodder Beet',ha:4.8,yieldBudget:22000,yieldActual:22500,costSeed:430,costChem:1078,costFert:335,costOps:378,notes:'2022 actual'},
-  {id:'a07',paddock:'Top Stump',year:'2022',crop:'Fodder Beet',ha:4.7,yieldBudget:22000,yieldActual:25000,costSeed:430,costChem:1078,costFert:335,costOps:378,notes:'2022 actual'},
-  {id:'a08',paddock:'Oscars',year:'2022',crop:'Fodder Beet',ha:3.5,yieldBudget:22000,yieldActual:20000,costSeed:430,costChem:1078,costFert:335,costOps:378,notes:'2022 actual'},
-  // 2022 Actuals — Lifting Beet
-  {id:'a09',paddock:'Sowbie 3',year:'2022',crop:'Lifting Beet',ha:4.8,yieldBudget:25000,yieldActual:23000,costSeed:522,costChem:1078,costFert:335,costOps:378,notes:'2022 actual'},
-  {id:'a10',paddock:'Sowbie 1',year:'2022',crop:'Lifting Beet',ha:4.6,yieldBudget:25000,yieldActual:27000,costSeed:522,costChem:1078,costFert:335,costOps:378,notes:'2022 actual'},
-  {id:'a11',paddock:'Georges 1',year:'2022',crop:'Lifting Beet',ha:4.3,yieldBudget:25000,yieldActual:28000,costSeed:522,costChem:1078,costFert:335,costOps:378,notes:'2022 actual'},
-  {id:'a12',paddock:'McDonalds',year:'2022',crop:'Lifting Beet',ha:4.1,yieldBudget:25000,yieldActual:24000,costSeed:522,costChem:1078,costFert:335,costOps:378,notes:'2022 actual'},
-  // 2022 Actuals — Swedes
-  {id:'a13',paddock:'Poplars',year:'2022',crop:'Swedes',ha:4.1,yieldBudget:18000,yieldActual:18000,costSeed:240,costChem:543,costFert:535,costOps:395,notes:'2022 actual'},
-  {id:'a14',paddock:'Ryans',year:'2022',crop:'Swedes',ha:4.6,yieldBudget:18000,yieldActual:18700,costSeed:240,costChem:543,costFert:535,costOps:395,notes:'2022 actual'},
-  {id:'a15',paddock:'Auckland',year:'2022',crop:'Swedes',ha:11.2,yieldBudget:18000,yieldActual:19000,costSeed:240,costChem:543,costFert:535,costOps:395,notes:'2022 actual'},
-  {id:'a16',paddock:'Northland',year:'2022',crop:'Swedes',ha:9.1,yieldBudget:18000,yieldActual:17500,costSeed:240,costChem:543,costFert:535,costOps:395,notes:'2022 actual'},
-  {id:'a17',paddock:'Beehives',year:'2022',crop:'Swedes',ha:13.9,yieldBudget:18000,yieldActual:17000,costSeed:240,costChem:543,costFert:535,costOps:395,notes:'2022 actual'},
-];
-
-const DEFAULT_SILAGE = [
-  {id:'si01',name:'Right Front Grass',type:'Grass Silage',season:'2025',dm:28.5,me:10.0,cp:15.5,ph:4.2,lactic:8.6,qualityRating:'Good',kgDMOpening:490000,kgDMCurrent:490000,notes:'Good fermentation. High lactic acid.'},
-  {id:'si02',name:'Right Back Grass',type:'Grass Silage',season:'2025',dm:34.3,me:11.2,cp:15.8,ph:4.3,lactic:6.5,qualityRating:'Excellent',kgDMOpening:420000,kgDMCurrent:420000,notes:'Best grass silage quality on farm. Excellent ME and fermentation.'},
-  {id:'si03',name:'Baleage 2025',type:'Baleage',season:'2025',dm:24.7,me:10.8,cp:17.8,ph:4.2,lactic:6.4,qualityRating:'Good',kgDMOpening:185000,kgDMCurrent:185000,notes:'Good. Very wet — high effluent risk when handling.'},
-  {id:'si04',name:'Left Back Lucerne',type:'Lucerne Silage',season:'2025',dm:38.0,me:8.1,cp:16.3,ph:null,lactic:null,qualityRating:'Very Poor',kgDMOpening:220000,kgDMCurrent:220000,notes:'VERY POOR — ME 8.1 only. Over-mature at cutting. High lignin (10.8%). Do not use as primary energy feed without ME correction in ration.'},
-  {id:'si05',name:'Left Front Lucerne',type:'Lucerne Silage',season:'2025',dm:42.2,me:8.2,cp:16.0,ph:null,lactic:null,qualityRating:'Very Poor',kgDMOpening:200000,kgDMCurrent:200000,notes:'VERY POOR — ME 8.2. Lignin 12.5% — severe over-maturity. RFV 124. Same issue as Left Back. Do not feed as sole energy source.'},
-  {id:'si06',name:'Maize 2025',type:'Maize Silage',season:'2025',dm:32.3,me:10.1,cp:7.5,ph:4.2,lactic:3.5,qualityRating:'Good',kgDMOpening:285000,kgDMCurrent:285000,notes:'Normal maize. Starch 25.2%. Slightly low lactic — monitor for aerobic spoilage on face.'},
-  {id:'si07',name:'Mohaka Lucerne Baleage Jun 24',type:'Lucerne Silage',season:'2024',dm:38.1,me:11.1,cp:15.5,ph:5.0,lactic:2.1,qualityRating:'Acceptable',kgDMOpening:120000,kgDMCurrent:120000,notes:'Acceptable — pH slightly high for lucerne (target <4.5). Good ME and CP.'},
-  {id:'si08',name:'Bulk Grass Jul 24',type:'Grass Silage',season:'2024',dm:34.2,me:10.7,cp:11.1,ph:4.1,lactic:8.3,qualityRating:'Good',kgDMOpening:600000,kgDMCurrent:600000,notes:'Main bulk grass silage. Good fermentation. Low CP (mature cut).'},
-];
-
-const DEFAULT_PADDOCKS = [
-  {id:'p01',name:'River 1',area:6.2,pH:6.0,olsenP:14,K:3,S:17,notes:'Low Olsen P — fertilise before swedes. Very low K.'},
-  {id:'p02',name:'River 2',area:5.8,pH:5.3,olsenP:28,K:14,S:23,notes:'pH low — lime before next crop'},
-  {id:'p03',name:'River 3',area:4.8,pH:5.4,olsenP:26,K:11,S:19,notes:''},
-  {id:'p04',name:'River 4',area:5.1,pH:5.7,olsenP:27,K:3,S:18,notes:'Very low K (3) — apply K fertiliser'},
-  {id:'p05',name:'River 5',area:4.7,pH:5.7,olsenP:29,K:7,S:17,notes:''},
-  {id:'p06',name:'Deershed Drive',area:4.2,pH:5.8,olsenP:55,K:19,S:9,notes:'Very high Olsen P (55). Low S (9).'},
-  {id:'p07',name:'Woodings',area:4.8,pH:5.4,olsenP:31,K:6,S:17,notes:'pH low'},
-  {id:'p08',name:'Cattle Yards 2',area:null,pH:5.5,olsenP:47,K:13,S:5,notes:'Very low S (5)'},
-  {id:'p09',name:'Cattle Yards 3',area:5.2,pH:5.4,olsenP:29,K:12,S:16,notes:'pH low for swedes'},
-  {id:'p10',name:'Cattle Yards 4',area:null,pH:5.6,olsenP:47,K:13,S:8,notes:'Low S (8)'},
-  {id:'p11',name:'One Tree',area:4.8,pH:5.4,olsenP:67,K:18,S:5,notes:'Very high Olsen P (67). Very low S (5).'},
-  {id:'p12',name:'Horsfall 1',area:5.2,pH:6.2,olsenP:17,K:8,S:4,notes:'Very low S (4). Good pH for maize.'},
-  {id:'p13',name:'Horsfall 2',area:5.9,pH:null,olsenP:null,K:null,S:null,notes:''},
-  {id:'p14',name:'Horsfall 3',area:6.1,pH:5.7,olsenP:26,K:9,S:16,notes:''},
-  {id:'p15',name:'Horsfall 4',area:5.1,pH:6.0,olsenP:20,K:7,S:4,notes:'Very low S (4). Good pH.'},
-  {id:'p16',name:'Auckland',area:11.2,pH:5.3,olsenP:36,K:10,S:68,notes:'pH very low for lucerne (target 6.0+). Very high S (68) — possible sulphate leaching.'},
-  {id:'p17',name:'Northland',area:9.1,pH:5.6,olsenP:52,K:11,S:23,notes:'High Olsen P'},
-  {id:'p18',name:'Bondis',area:3.4,pH:5.7,olsenP:57,K:14,S:15,notes:'High Olsen P'},
-  {id:'p19',name:'Sowbie 1',area:4.6,pH:null,olsenP:null,K:null,S:null,notes:''},
-  {id:'p20',name:'Sowbie 2',area:4.3,pH:null,olsenP:null,K:null,S:null,notes:''},
-  {id:'p21',name:'Sowbie 3',area:4.8,pH:null,olsenP:null,K:null,S:null,notes:''},
-  {id:'p22',name:'Ryans',area:4.6,pH:null,olsenP:null,K:null,S:null,notes:''},
-  {id:'p23',name:'Wairarapa Bush',area:null,pH:5.5,olsenP:38,K:16,S:28,notes:'pH borderline. High K — grass staggers risk if grazed lush.'},
-  {id:'p24',name:'Longhill',area:null,pH:5.2,olsenP:22,K:11,S:7,notes:'Low pH (5.2) — needs lime. Very low S (7).'},
-  {id:'p25',name:'Martins',area:null,pH:5.2,olsenP:36,K:6,S:67,notes:'Low pH — lime critical for lucerne. Very high S.'},
-  {id:'p26',name:'Thatchers',area:null,pH:5.4,olsenP:45,K:9,S:39,notes:'pH below optimum for lucerne'},
-  {id:'p27',name:'Golden Willow 3',area:4.2,pH:null,olsenP:null,K:null,S:null,notes:''},
-  {id:'p28',name:'Golden Willow 4',area:3.9,pH:null,olsenP:null,K:null,S:null,notes:''},
-  {id:'p29',name:'McKerchers',area:4.35,pH:null,olsenP:null,K:null,S:null,notes:''},
-  {id:'p30',name:'Two Tanks 2',area:5.0,pH:null,olsenP:null,K:null,S:null,notes:''},
-];
-
-const DEFAULT_AI_NOTES = `## AI Advisor — Session: 30 June 2026
-
-### Yield Predictions — 2026/27
-
-| Crop | Ha | Budget kg/ha | AI Prediction | Basis |
-|---|---|---|---|---|
-| Kale | 45.8 | 10,000 | 9,500 | Conservative — kale has been running to 10,000 but Waikato paddock is short |
-| Swedes | 33.8 | 15,000 | 14,000 | River block K deficiency (K=3 on River 1 & 4) will limit yield |
-| Fodder Beet | 18.35 | 20,000 | 19,500 | Woodings pH 5.4 is a mild drag. Deershed Drive looks strong (pH 5.8) |
-| Lifting Beet | 13.7 | 16,000 | 15,500 | Sowbies have no recent soil data — treat with caution |
-| Maize | 22.7 | 18,000 | 17,500 | River 4 very low K — apply K before sow or yield will suffer |
-| Clover | 9.5 | 8,000 | — | Establishment year — no meaningful yield prediction |
-
-### Critical Flags
-
-1. **Lucerne silage quality (CRITICAL):** Both Left Front and Left Back lucerne stacks tested in May 2025 at ME 8.1–8.2 MJ/kgDM. If these were fed in the 2025 barn season as "lucerne silage", the actual ME delivered was ~20% below what the feed budget assumed. Check 2025 barn weigh-out condition against expected performance.
-
-2. **River block fertiliser (HIGH):** River 1 Olsen P = 14 — too low for swedes (target 20+). River 4 K = 3 — critically low for maize (target 5+). Both need pre-crop fertiliser correction or yield will underperform.
-
-3. **Kale supply (MEDIUM):** Bottom 60 and Boots were over-used as at 24 June 2026. Monitor remaining supply heading into August/September — these mobs may need silage supplement earlier than planned.
-
-4. **Selenium deficiency (SYSTEMIC):** All pasture tests consistently show Se <0.02 mg/kg (target 0.05–0.15). This affects ALL stock — not just barn stags. Confirm grazing hinds, weaners, and cattle are all receiving Se supplementation via drench, lick, or bolus.
-
-5. **Maize at River 3 (pH 5.4):** Borderline for maize (target 5.8+). Consider dolomite lime pre-sow if not already applied.
-
-6. **Lifting beet budget vs actual 2022:** 2022 actual avg was 25,500 kg/ha vs current budget of 16,000. The 2022 paddocks (Sowbie 1, Georges 1) were exceptional — Sowbie blocks haven't been grown since 2022 so treat budget conservatively until first harvest data is in.
-
-### Feed Position — 2026/27 Budget
-- Total crop DM supply: ~3,940,000 kg DM (calculated from programme)
-- Total winter DM requirement (budget): 3,649,133 kg DM
-- Projected surplus: ~+290,000 kg DM (~8%)
-- Note: This uses budget yields, not AI-adjusted predictions. On AI-adjusted yields, surplus narrows to ~+100,000 kg DM — adequate but not comfortable.
-
-### Silage Recommendations
-- Do not feed Left Front or Left Back Lucerne as primary energy source — ME is only 8.1–8.2. Blend with maize or high-quality grass silage to bring effective ME above 10.0 for barn stags.
-- Right Back Grass (ME 11.2) is the best grass silage on farm — reserve for high-demand periods (pre-rut, post-rut recovery).
-- Test new silage stacks (2026 harvest) before locking in barn rations.
-
-### Ha to Cut — Silage Recommendation
-Based on current inventory (approx 2,300,000 kg DM silage), barn requirements (~800,000 kg DM), and a conservative 25% buffer:
-- Target to harvest in 2026/27: 600–800 t DM grass silage
-- Equivalent: 130–175 ha of grass at 4,500 kg DM/ha (85% utilisation)
-`;
-
-// ── STATE ──────────────────────────────────────────────────────────────────
-let SCRIPT_URL = '';
-let syncDisconnected = false;
-let lastSheetsTs = 0;
+// -- STATE --
+let cropPlan   = [];  // { id, paddock, crop, ha, drillDate, yieldKgHA, seedHA, chemHA, fertHA, opsHA, notes }
+let stockReq   = [];  // { id, cls, species, headPrev, headCurr, kgDMday, period, days, feedSource, notes }
+let supplements = []; // { id, name, type, kgDM, costPerKgDM, notes }
+let history    = [];  // { id, year, paddock, crop, ha, yieldBudget, yieldActual, notes }
+let aiNotes    = '';
+let settings   = { scriptUrl: '', year: YEAR, disconnected: false };
+let lastTs     = 0;
 let syncPending = false;
-let pollTimer = null;
-let activeTab = 'dashboard';
-let cpYear = '2026/27';
-let budYear = '2026/27';
+let pollTimer  = null;
+let activeTab  = 'dashboard';
 
-let programme = [];
-let silage = [];
-let paddocks = [];
-let aiNotes = '';
-
-// ── PERSISTENCE ───────────────────────────────────────────────────────────
-function loadAll() {
-  const s = JSON.parse(localStorage.getItem('crop1_settings') || '{}');
-  SCRIPT_URL = s.scriptUrl || '';
-  cpYear = s.currentYear || '2026/27';
-  budYear = cpYear;
-  lastSheetsTs = Number(localStorage.getItem('crop1_lastSheetsTs') || '0');
-  programme = JSON.parse(localStorage.getItem('crop1_programme') || 'null') || DEFAULT_PROGRAMME;
-  silage    = JSON.parse(localStorage.getItem('crop1_silage')    || 'null') || DEFAULT_SILAGE;
-  paddocks  = JSON.parse(localStorage.getItem('crop1_paddocks')  || 'null') || DEFAULT_PADDOCKS;
-  aiNotes   = localStorage.getItem('crop1_aiNotes') ?? DEFAULT_AI_NOTES;
-  document.getElementById('settings-url').value = SCRIPT_URL;
-  document.getElementById('settings-year').value = cpYear;
+// -- PERSISTENCE --
+function save() {
+  localStorage.setItem(NS+'crop', JSON.stringify(cropPlan));
+  localStorage.setItem(NS+'stock', JSON.stringify(stockReq));
+  localStorage.setItem(NS+'supps', JSON.stringify(supplements));
+  localStorage.setItem(NS+'history', JSON.stringify(history));
+  localStorage.setItem(NS+'ai', aiNotes);
+  localStorage.setItem(NS+'settings', JSON.stringify(settings));
+  schedulePush();
 }
 
-function saveLocal() {
-  localStorage.setItem('crop1_programme', JSON.stringify(programme));
-  localStorage.setItem('crop1_silage',    JSON.stringify(silage));
-  localStorage.setItem('crop1_paddocks',  JSON.stringify(paddocks));
-  localStorage.setItem('crop1_aiNotes',   aiNotes);
+function load() {
+  cropPlan    = JSON.parse(localStorage.getItem(NS+'crop')     || '[]');
+  stockReq    = JSON.parse(localStorage.getItem(NS+'stock')    || '[]');
+  supplements = JSON.parse(localStorage.getItem(NS+'supps')    || '[]');
+  history     = JSON.parse(localStorage.getItem(NS+'history')  || '[]');
+  aiNotes     = localStorage.getItem(NS+'ai') || '';
+  settings    = JSON.parse(localStorage.getItem(NS+'settings') || '{}');
+  settings.year = settings.year || YEAR;
+  lastTs      = Number(localStorage.getItem(NS+'lastTs') || 0);
 }
 
-function saveAll() {
-  saveLocal();
-  if (!SCRIPT_URL || syncDisconnected) return;
-  syncPending = true;
-  clearTimeout(window._pushTimer);
-  window._pushTimer = setTimeout(pushToSheet, 1500);
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function n(v) { return Number(v) || 0; }
+function fmt$(v) { return '$' + Math.round(n(v)).toLocaleString(); }
+function fmtT(v) { return Math.round(n(v)/1000).toLocaleString() + 't'; }
+function fmtDM(v) { return Math.round(n(v)).toLocaleString() + ' kg'; }
+
+// -- COMPUTED TOTALS --
+function totalDemand() {
+  return stockReq.reduce((s, r) => s + n(r.headCurr) * n(r.kgDMday) * n(r.days), 0);
 }
 
-// ── SYNC ──────────────────────────────────────────────────────────────────
+function cropSupply() {
+  return cropPlan.reduce((s, c) => {
+    return s + n(c.ha) * n(c.yieldKgHA) * (DM_PCT[c.crop] || 0.15) * 0.90;
+  }, 0);
+}
+
+function suppSupply() {
+  return supplements.reduce((s, x) => s + n(x.kgDM), 0);
+}
+
+function totalSupply() { return cropSupply() + suppSupply(); }
+function surplus() { return totalSupply() - totalDemand(); }
+
+function totalCropCost() {
+  return cropPlan.reduce((s, c) => {
+    return s + n(c.ha) * (n(c.seedHA) + n(c.chemHA) + n(c.fertHA) + n(c.opsHA));
+  }, 0);
+}
+
+function totalSuppCost() {
+  return supplements.reduce((s, x) => s + n(x.kgDM) * n(x.costPerKgDM), 0);
+}
+
+function totalHa() { return cropPlan.reduce((s, c) => s + n(c.ha), 0); }
+
+// -- TABS --
+function showTab(name) {
+  activeTab = name;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  const idx = ['dashboard','crop','stock','feed','financial','history','ai','settings'].indexOf(name);
+  document.querySelectorAll('nav button')[idx].classList.add('active');
+  renderTab(name);
+}
+
+function renderTab(name) {
+  if (name === 'dashboard')  renderDashboard();
+  if (name === 'crop')       renderCrop();
+  if (name === 'stock')      renderStock();
+  if (name === 'feed')       renderFeed();
+  if (name === 'financial')  renderFinancial();
+  if (name === 'history')    renderHistory();
+  if (name === 'ai')         renderAI();
+  if (name === 'settings')   renderSettings();
+}
+
+function renderAll() {
+  document.getElementById('hdr-sub').textContent = settings.year + ' · ' + APP_VER;
+  renderTab(activeTab);
+}
+
+// -- DASHBOARD --
+function renderDashboard() {
+  const dem = totalDemand();
+  const sup = totalSupply();
+  const sur = surplus();
+  const pct = dem > 0 ? Math.min(100, Math.round(sup / dem * 100)) : 0;
+  const flags = buildFlags();
+
+  document.getElementById('tab-dashboard').innerHTML = `
+    <div class="cards">
+      <div class="card">
+        <div class="label">Total Crop Ha</div>
+        <div class="value">${totalHa().toFixed(1)}</div>
+        <div class="sub">${cropPlan.length} paddocks</div>
+      </div>
+      <div class="card">
+        <div class="label">DM Supply</div>
+        <div class="value">${fmtT(sup)}</div>
+        <div class="sub">Crops + supplements</div>
+      </div>
+      <div class="card">
+        <div class="label">DM Demand</div>
+        <div class="value">${fmtT(dem)}</div>
+        <div class="sub">All stock classes</div>
+      </div>
+      <div class="card ${sur >= 0 ? 'surplus' : 'deficit'}">
+        <div class="label">Surplus / Deficit</div>
+        <div class="value">${sur >= 0 ? '+' : ''}${fmtT(sur)}</div>
+        <div class="sub">Supply ${pct}% of demand</div>
+      </div>
+      <div class="card">
+        <div class="label">Programme Cost</div>
+        <div class="value">${fmt$(totalCropCost() + totalSuppCost())}</div>
+        <div class="sub">${settings.year} budget</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;" class="dash-lower">
+      <div>
+        <div class="section-title" style="font-size:14px;">Crop Programme — ${settings.year}</div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Crop</th><th style="text-align:right">Ha</th><th style="text-align:right">DM Supply</th><th style="text-align:right">Cost</th></tr></thead>
+            <tbody>${renderCropSummaryRows()}</tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <div class="section-title" style="font-size:14px;">Flags</div>
+        <div class="flags-box">
+          <div class="flags-box-hdr">Auto-generated alerts</div>
+          ${flags.length ? flags.map(f => `
+            <div class="flag-item">
+              <div class="flag-dot ${f.level}"></div>
+              <div><div class="flag-title">${f.title}</div><div class="flag-desc">${f.desc}</div></div>
+            </div>`).join('') : '<div class="no-flags">No flags — data looks good.</div>'}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderCropSummaryRows() {
+  const byType = {};
+  cropPlan.forEach(c => {
+    if (!byType[c.crop]) byType[c.crop] = { ha: 0, dm: 0, cost: 0 };
+    byType[c.crop].ha   += n(c.ha);
+    byType[c.crop].dm   += n(c.ha) * n(c.yieldKgHA) * (DM_PCT[c.crop] || 0.15) * 0.9;
+    byType[c.crop].cost += n(c.ha) * (n(c.seedHA) + n(c.chemHA) + n(c.fertHA) + n(c.opsHA));
+  });
+  if (!Object.keys(byType).length) return '<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:16px;">No crops entered yet</td></tr>';
+  return Object.entries(byType).map(([crop, v]) => `
+    <tr>
+      <td><span class="tag ${CROP_TAG[crop] || 'tag-other'}">${crop}</span></td>
+      <td style="text-align:right">${v.ha.toFixed(1)}</td>
+      <td style="text-align:right">${fmtT(v.dm)}</td>
+      <td style="text-align:right">${fmt$(v.cost)}</td>
+    </tr>`).join('');
+}
+
+function buildFlags() {
+  const flags = [];
+  const sur = surplus();
+  if (sur < 0) flags.push({ level:'red', title:'Feed Deficit', desc:`${fmtT(Math.abs(sur))} DM shortfall. Add supplements or increase crop area.` });
+  else if (sur < 200000) flags.push({ level:'amber', title:'Tight Feed Margin', desc:`Only ${fmtT(sur)} surplus. Limited buffer for poor yields.` });
+  cropPlan.forEach(c => {
+    if (n(c.yieldKgHA) < (GM[c.crop]?.yieldKgHA || 10000) * 0.75) {
+      flags.push({ level:'amber', title:`Low yield budget — ${c.paddock}`, desc:`${c.crop} budgeted at ${n(c.yieldKgHA).toLocaleString()} kg/ha vs ${GM[c.crop]?.yieldKgHA?.toLocaleString()} kg/ha typical.` });
+    }
+  });
+  if (totalDemand() === 0) flags.push({ level:'amber', title:'No stock entered', desc:'Add stock classes in Stock Req to calculate feed demand.' });
+  if (cropPlan.length === 0) flags.push({ level:'amber', title:'No crop plan entered', desc:'Add paddocks in Crop Plan to calculate feed supply.' });
+  return flags;
+}
+
+// -- CROP PLAN --
+function renderCrop() {
+  const byType = {};
+  cropPlan.forEach(c => {
+    if (!byType[c.crop]) byType[c.crop] = [];
+    byType[c.crop].push(c);
+  });
+
+  const cropOptions = CROPS.map(c => `<option>${c}</option>`).join('');
+  let rows = '';
+
+  Object.entries(byType).forEach(([crop, rows_]) => {
+    const totHa = rows_.reduce((s,c)=>s+n(c.ha),0);
+    const totCost = rows_.reduce((s,c)=>s+n(c.ha)*(n(c.seedHA)+n(c.chemHA)+n(c.fertHA)+n(c.opsHA)),0);
+    const totDM = rows_.reduce((s,c)=>s+n(c.ha)*n(c.yieldKgHA)*(DM_PCT[crop]||.15)*.9,0);
+    rows += `<tr class="section-row"><td colspan="2"><span class="tag ${CROP_TAG[crop]||'tag-other'}">${crop}</span></td>
+      <td style="text-align:right">${totHa.toFixed(1)} ha</td><td></td>
+      <td style="text-align:right">${n(GM[crop]?.yieldKgHA).toLocaleString()}</td>
+      <td style="text-align:right" colspan="4">${fmtT(totDM)} DM</td>
+      <td style="text-align:right">${fmt$(totCost)}</td><td></td></tr>`;
+    rows_.forEach(c => { rows += cropRow(c, cropOptions); });
+  });
+
+  if (!rows) rows = `<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--muted);">No paddocks yet — click Add Paddock below</td></tr>`;
+
+  document.getElementById('tab-crop').innerHTML = `
+    <div class="toolbar">
+      <div class="section-title" style="flex:1;border:none;margin:0">Crop Plan — ${settings.year}</div>
+      <button class="btn btn-primary" onclick="addCropRow()">+ Add Paddock</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Paddock</th><th>Crop</th><th style="text-align:right">Ha</th>
+          <th>Drill Date</th><th style="text-align:right">Yield kg/ha</th>
+          <th style="text-align:right">Seed $/ha</th><th style="text-align:right">Chem $/ha</th>
+          <th style="text-align:right">Fert $/ha</th><th style="text-align:right">Ops $/ha</th>
+          <th style="text-align:right">Total $</th><th></th>
+        </tr></thead>
+        <tbody id="crop-tbody">${rows}</tbody>
+      </table>
+      <div class="add-row"><button onclick="addCropRow()">+ Add paddock</button></div>
+    </div>`;
+}
+
+function cropRow(c, cropOptions) {
+  const cost = n(c.ha) * (n(c.seedHA) + n(c.chemHA) + n(c.fertHA) + n(c.opsHA));
+  const opts = CROPS.map(x => `<option${x===c.crop?' selected':''}>${x}</option>`).join('');
+  return `<tr id="cr-${c.id}">
+    <td><input value="${c.paddock||''}" onchange="updateCrop('${c.id}','paddock',this.value)" placeholder="Paddock name"></td>
+    <td><select onchange="cropTypeChanged('${c.id}',this.value)">${opts}</select></td>
+    <td><input class="num" type="number" value="${c.ha||''}" onchange="updateCrop('${c.id}','ha',this.value)" style="width:60px"></td>
+    <td><input value="${c.drillDate||''}" onchange="updateCrop('${c.id}','drillDate',this.value)" placeholder="dd/mm/yy" style="width:80px"></td>
+    <td><input class="num" type="number" value="${c.yieldKgHA||''}" onchange="updateCrop('${c.id}','yieldKgHA',this.value)" style="width:80px"></td>
+    <td><input class="num" type="number" value="${c.seedHA||''}" onchange="updateCrop('${c.id}','seedHA',this.value)" style="width:70px"></td>
+    <td><input class="num" type="number" value="${c.chemHA||''}" onchange="updateCrop('${c.id}','chemHA',this.value)" style="width:70px"></td>
+    <td><input class="num" type="number" value="${c.fertHA||''}" onchange="updateCrop('${c.id}','fertHA',this.value)" style="width:70px"></td>
+    <td><input class="num" type="number" value="${c.opsHA||''}" onchange="updateCrop('${c.id}','opsHA',this.value)" style="width:70px"></td>
+    <td style="text-align:right;font-weight:600">${fmt$(cost)}</td>
+    <td><button class="del-btn" onclick="deleteCrop('${c.id}')">x</button></td>
+  </tr>`;
+}
+
+function addCropRow() {
+  const crop = 'Kale';
+  const gm = GM[crop];
+  const c = { id: uid(), paddock:'', crop, ha:'', drillDate:'', yieldKgHA: gm.yieldKgHA, seedHA: gm.seedHA, chemHA: gm.chemHA, fertHA: gm.fertHA, opsHA: gm.opsHA, notes:'' };
+  cropPlan.push(c);
+  save();
+  renderCrop();
+  const row = document.getElementById('cr-' + c.id);
+  if (row) row.querySelector('input').focus();
+}
+
+function updateCrop(id, field, val) {
+  const c = cropPlan.find(x => x.id === id);
+  if (!c) return;
+  c[field] = val;
+  save();
+  if (['ha','seedHA','chemHA','fertHA','opsHA'].includes(field)) {
+    const cost = n(c.ha) * (n(c.seedHA) + n(c.chemHA) + n(c.fertHA) + n(c.opsHA));
+    const row = document.getElementById('cr-' + id);
+    if (row) row.querySelectorAll('td')[9].textContent = fmt$(cost);
+  }
+}
+
+function cropTypeChanged(id, crop) {
+  const c = cropPlan.find(x => x.id === id);
+  if (!c) return;
+  c.crop = crop;
+  const gm = GM[crop];
+  if (gm) { c.yieldKgHA = gm.yieldKgHA; c.seedHA = gm.seedHA; c.chemHA = gm.chemHA; c.fertHA = gm.fertHA; c.opsHA = gm.opsHA; }
+  save();
+  renderCrop();
+}
+
+function deleteCrop(id) {
+  cropPlan = cropPlan.filter(x => x.id !== id);
+  save();
+  renderCrop();
+}
+
+// -- STOCK REQ --
+function renderStock() {
+  const deer  = stockReq.filter(r => r.species === 'Deer');
+  const cattle = stockReq.filter(r => r.species === 'Cattle');
+
+  const deerDM  = deer.reduce((s,r) => s + n(r.headCurr)*n(r.kgDMday)*n(r.days), 0);
+  const cattleDM = cattle.reduce((s,r) => s + n(r.headCurr)*n(r.kgDMday)*n(r.days), 0);
+
+  document.getElementById('tab-stock').innerHTML = `
+    <div class="toolbar">
+      <div class="section-title" style="flex:1;border:none;margin:0">Stock Feed Requirements — ${settings.year}</div>
+      <button class="btn btn-primary btn-sm" onclick="addStockRow('Deer')">+ Add Deer Class</button>
+      <button class="btn btn-ghost btn-sm" onclick="addStockRow('Cattle')">+ Add Cattle Class</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Class</th>
+          <th style="text-align:right">Head (prev yr)</th>
+          <th style="text-align:right">Head (this yr)</th>
+          <th style="text-align:right">kgDM/day</th>
+          <th>Period</th>
+          <th style="text-align:right">Days</th>
+          <th>Feed Source</th>
+          <th style="text-align:right">Total kgDM</th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          <tr class="section-row"><td colspan="9">Deer</td></tr>
+          ${deer.map(r => stockRow(r)).join('') || '<tr><td colspan="9" style="color:var(--muted);padding:12px">No deer classes — add above</td></tr>'}
+          <tr class="total-row">
+            <td colspan="7">Deer total</td>
+            <td style="text-align:right">${fmtDM(deerDM)}</td><td></td>
+          </tr>
+          <tr class="section-row"><td colspan="9">Cattle</td></tr>
+          ${cattle.map(r => stockRow(r)).join('') || '<tr><td colspan="9" style="color:var(--muted);padding:12px">No cattle classes — add above</td></tr>'}
+          <tr class="total-row">
+            <td colspan="7">Cattle total</td>
+            <td style="text-align:right">${fmtDM(cattleDM)}</td><td></td>
+          </tr>
+          <tr class="total-row">
+            <td colspan="7">Grand total</td>
+            <td style="text-align:right">${fmtDM(totalDemand())}</td><td></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="add-row">
+        <button onclick="addStockRow('Deer')">+ Deer class</button> &nbsp;
+        <button onclick="addStockRow('Cattle')">+ Cattle class</button>
+      </div>
+    </div>`;
+}
+
+function stockRow(r) {
+  const total = n(r.headCurr) * n(r.kgDMday) * n(r.days);
+  return `<tr id="sr-${r.id}">
+    <td><input value="${r.cls||''}" onchange="updateStock('${r.id}','cls',this.value)" placeholder="e.g. Ma Hinds" style="min-width:140px"></td>
+    <td><input class="num" type="number" value="${r.headPrev||''}" onchange="updateStock('${r.id}','headPrev',this.value)" style="width:70px"></td>
+    <td><input class="num" type="number" value="${r.headCurr||''}" onchange="updateStockCalc('${r.id}','headCurr',this.value)" style="width:70px"></td>
+    <td><input class="num" type="number" step="0.1" value="${r.kgDMday||''}" onchange="updateStockCalc('${r.id}','kgDMday',this.value)" style="width:60px"></td>
+    <td><input value="${r.period||''}" onchange="updateStock('${r.id}','period',this.value)" placeholder="e.g. 15 May-15 Sep" style="min-width:130px"></td>
+    <td><input class="num" type="number" value="${r.days||''}" onchange="updateStockCalc('${r.id}','days',this.value)" style="width:55px"></td>
+    <td><input value="${r.feedSource||''}" onchange="updateStock('${r.id}','feedSource',this.value)" placeholder="e.g. Kale" style="min-width:100px"></td>
+    <td style="text-align:right;font-weight:600" id="sr-total-${r.id}">${fmtDM(total)}</td>
+    <td><button class="del-btn" onclick="deleteStock('${r.id}')">x</button></td>
+  </tr>`;
+}
+
+function addStockRow(species) {
+  const r = { id: uid(), species, cls:'', headPrev:'', headCurr:'', kgDMday:'', period:'15 May - 15 Sep', days: 120, feedSource:'', notes:'' };
+  stockReq.push(r);
+  save();
+  renderStock();
+  const row = document.getElementById('sr-' + r.id);
+  if (row) row.querySelector('input').focus();
+}
+
+function updateStock(id, field, val) {
+  const r = stockReq.find(x => x.id === id);
+  if (r) { r[field] = val; save(); }
+}
+
+function updateStockCalc(id, field, val) {
+  const r = stockReq.find(x => x.id === id);
+  if (!r) return;
+  r[field] = val;
+  const total = n(r.headCurr) * n(r.kgDMday) * n(r.days);
+  const el = document.getElementById('sr-total-' + id);
+  if (el) el.textContent = fmtDM(total);
+  save();
+}
+
+function deleteStock(id) {
+  stockReq = stockReq.filter(x => x.id !== id);
+  save();
+  renderStock();
+}
+
+// -- FEED BUDGET --
+function renderFeed() {
+  const dem  = totalDemand();
+  const cSup = cropSupply();
+  const sSup = suppSupply();
+  const sup  = cSup + sSup;
+  const sur  = sup - dem;
+  const pct  = dem > 0 ? Math.min(110, Math.round(sup/dem*100)) : 0;
+
+  const suppOpts = `<option value="Silage">Silage</option><option value="Balage">Balage</option><option value="Hay">Hay</option><option value="Maize Silage">Maize Silage</option><option value="Lucerne Silage">Lucerne Silage</option><option value="Supplement">Supplement</option>`;
+
+  const suppRows = supplements.map(x => {
+    const cost = n(x.kgDM) * n(x.costPerKgDM);
+    return `<tr id="xr-${x.id}">
+      <td><input value="${x.name||''}" onchange="updateSupp('${x.id}','name',this.value)" placeholder="Stack / source name"></td>
+      <td><select onchange="updateSupp('${x.id}','type',this.value)">${suppOpts.replace(`"${x.type||'Silage'}"`,`"${x.type||'Silage'}" selected`)}</select></td>
+      <td><input class="num" type="number" value="${x.kgDM||''}" onchange="updateSupp('${x.id}','kgDM',this.value)" style="width:90px"></td>
+      <td><input class="num" type="number" step="0.001" value="${x.costPerKgDM||''}" onchange="updateSupp('${x.id}','costPerKgDM',this.value)" style="width:80px" placeholder="$/kgDM"></td>
+      <td style="text-align:right;font-weight:600">${fmt$(cost)}</td>
+      <td><button class="del-btn" onclick="deleteSupp('${x.id}')">x</button></td>
+    </tr>`;
+  }).join('');
+
+  const cropFeedRows = cropPlan.length ? cropPlan.map(c => {
+    const dm = n(c.ha) * n(c.yieldKgHA) * (DM_PCT[c.crop]||.15) * 0.90;
+    return `<tr>
+      <td><span class="tag ${CROP_TAG[c.crop]||'tag-other'}">${c.crop}</span></td>
+      <td>${c.paddock||'-'}</td>
+      <td style="text-align:right">${n(c.ha).toFixed(1)}</td>
+      <td style="text-align:right">${n(c.yieldKgHA).toLocaleString()}</td>
+      <td style="text-align:right">${((DM_PCT[c.crop]||.15)*100).toFixed(0)}%</td>
+      <td style="text-align:right;font-weight:600">${fmtDM(dm)}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="6" style="color:var(--muted);padding:12px">No crops in plan</td></tr>`;
+
+  document.getElementById('tab-feed').innerHTML = `
+    <div class="fb-summary">
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:2px">DEMAND</div>
+        <div style="font-size:22px;font-weight:700">${fmtT(dem)}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:2px">SUPPLY</div>
+        <div style="font-size:22px;font-weight:700">${fmtT(sup)}</div>
+      </div>
+      <div class="fb-bar-wrap">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Supply covers ${pct}% of demand</div>
+        <div class="fb-bar"><div class="fb-bar-fill ${pct>=100?'':'over'}" style="width:${pct}%"></div></div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:2px">${sur >= 0 ? 'SURPLUS' : 'DEFICIT'}</div>
+        <div style="font-size:22px;font-weight:700;color:${sur>=0?'var(--ok)':'var(--danger)'}">
+          ${sur >= 0 ? '+' : ''}${fmtT(sur)}
+        </div>
+      </div>
+    </div>
+
+    <div class="fb-section">
+      <div>
+        <div class="section-title" style="font-size:14px;">Supply from Crops <span style="font-size:12px;font-weight:400;color:var(--muted)">(from Crop Plan, 10% wastage applied)</span></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Crop</th><th>Paddock</th><th style="text-align:right">Ha</th><th style="text-align:right">Yield kg/ha</th><th style="text-align:right">DM%</th><th style="text-align:right">kgDM</th></tr></thead>
+            <tbody>
+              ${cropFeedRows}
+              <tr class="total-row"><td colspan="5">Total from crops</td><td style="text-align:right">${fmtDM(cSup)}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-title" style="font-size:14px;">Supply from Supplements / Silage</div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Type</th><th style="text-align:right">kgDM</th><th style="text-align:right">$/kgDM</th><th style="text-align:right">Cost</th><th></th></tr></thead>
+            <tbody>
+              ${suppRows || '<tr><td colspan="6" style="color:var(--muted);padding:12px">No supplements entered</td></tr>'}
+              <tr class="total-row"><td colspan="2">Total supplements</td><td style="text-align:right">${fmtDM(sSup)}</td><td></td><td style="text-align:right">${fmt$(totalSuppCost())}</td><td></td></tr>
+            </tbody>
+          </table>
+          <div class="add-row"><button onclick="addSupp()">+ Add supplement / silage stack</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title" style="font-size:14px;">Demand by Stock Class</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Class</th><th>Species</th><th style="text-align:right">Head</th><th style="text-align:right">kgDM/day</th><th>Period</th><th style="text-align:right">Days</th><th>Feed Source</th><th style="text-align:right">Total kgDM</th></tr></thead>
+          <tbody>
+            ${stockReq.length ? stockReq.map(r => {
+              const total = n(r.headCurr)*n(r.kgDMday)*n(r.days);
+              return `<tr>
+                <td>${r.cls||'-'}</td><td>${r.species||'-'}</td>
+                <td style="text-align:right">${n(r.headCurr).toLocaleString()}</td>
+                <td style="text-align:right">${r.kgDMday}</td>
+                <td>${r.period||'-'}</td>
+                <td style="text-align:right">${r.days}</td>
+                <td>${r.feedSource||'-'}</td>
+                <td style="text-align:right;font-weight:600">${fmtDM(total)}</td>
+              </tr>`;
+            }).join('') : '<tr><td colspan="8" style="color:var(--muted);padding:12px">No stock entered — add in Stock Req tab</td></tr>'}
+            <tr class="total-row"><td colspan="7">Grand total demand</td><td style="text-align:right">${fmtDM(dem)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function addSupp() {
+  const x = { id: uid(), name:'', type:'Silage', kgDM:'', costPerKgDM: 0.18, notes:'' };
+  supplements.push(x);
+  save();
+  renderFeed();
+  const row = document.getElementById('xr-' + x.id);
+  if (row) row.querySelector('input').focus();
+}
+
+function updateSupp(id, field, val) {
+  const x = supplements.find(s => s.id === id);
+  if (x) { x[field] = val; save(); }
+}
+
+function deleteSupp(id) {
+  supplements = supplements.filter(x => x.id !== id);
+  save();
+  renderFeed();
+}
+
+// -- FINANCIAL --
+function renderFinancial() {
+  const byType = {};
+  cropPlan.forEach(c => {
+    if (!byType[c.crop]) byType[c.crop] = { ha: 0, seed:0, chem:0, fert:0, ops:0 };
+    const h = n(c.ha);
+    byType[c.crop].ha   += h;
+    byType[c.crop].seed += h * n(c.seedHA);
+    byType[c.crop].chem += h * n(c.chemHA);
+    byType[c.crop].fert += h * n(c.fertHA);
+    byType[c.crop].ops  += h * n(c.opsHA);
+  });
+
+  const cropRows = Object.entries(byType).map(([crop, v]) => {
+    const total = v.seed + v.chem + v.fert + v.ops;
+    return `<tr>
+      <td><span class="tag ${CROP_TAG[crop]||'tag-other'}">${crop}</span></td>
+      <td style="text-align:right">${v.ha.toFixed(1)}</td>
+      <td style="text-align:right">${fmt$(v.seed)}</td>
+      <td style="text-align:right">${fmt$(v.chem)}</td>
+      <td style="text-align:right">${fmt$(v.fert)}</td>
+      <td style="text-align:right">${fmt$(v.ops)}</td>
+      <td style="text-align:right;font-weight:700">${fmt$(total)}</td>
+      <td style="text-align:right;color:var(--muted)">${fmt$(total / (v.ha||1))}/ha</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" style="color:var(--muted);padding:12px">No crops entered</td></tr>';
+
+  const suppRows = supplements.map(x => {
+    const cost = n(x.kgDM) * n(x.costPerKgDM);
+    return `<tr><td>${x.name||'-'}</td><td>${x.type||'-'}</td><td style="text-align:right">${fmtDM(x.kgDM)}</td><td style="text-align:right">${n(x.costPerKgDM).toFixed(3)}</td><td style="text-align:right;font-weight:700">${fmt$(cost)}</td></tr>`;
+  }).join('') || '<tr><td colspan="5" style="color:var(--muted);padding:12px">No supplements entered</td></tr>';
+
+  const grandTotal = totalCropCost() + totalSuppCost();
+
+  document.getElementById('tab-financial').innerHTML = `
+    <div class="cards" style="max-width:700px">
+      <div class="card"><div class="label">Crop Establishment</div><div class="value">${fmt$(totalCropCost())}</div></div>
+      <div class="card"><div class="label">Supplements</div><div class="value">${fmt$(totalSuppCost())}</div></div>
+      <div class="card"><div class="label">Total Programme</div><div class="value">${fmt$(grandTotal)}</div></div>
+    </div>
+
+    <div class="section-title">Crop Establishment Costs</div>
+    <div class="tbl-wrap" style="margin-bottom:24px">
+      <table>
+        <thead><tr><th>Crop</th><th style="text-align:right">Ha</th><th style="text-align:right">Seed</th><th style="text-align:right">Chem</th><th style="text-align:right">Fert</th><th style="text-align:right">Ops</th><th style="text-align:right">Total</th><th style="text-align:right">$/ha</th></tr></thead>
+        <tbody>
+          ${cropRows}
+          <tr class="total-row">
+            <td>Total</td>
+            <td style="text-align:right">${totalHa().toFixed(1)}</td>
+            <td colspan="4"></td>
+            <td style="text-align:right">${fmt$(totalCropCost())}</td>
+            <td style="text-align:right">${fmt$(totalCropCost()/(totalHa()||1))}/ha</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section-title">Supplement / Feed Costs</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th style="text-align:right">kgDM</th><th style="text-align:right">$/kgDM</th><th style="text-align:right">Total Cost</th></tr></thead>
+        <tbody>
+          ${suppRows}
+          <tr class="total-row"><td colspan="4">Total supplements</td><td style="text-align:right">${fmt$(totalSuppCost())}</td></tr>
+        </tbody>
+      </table>
+    </div>`;
+}
+
+// -- HISTORY --
+function renderHistory() {
+  const years = [...new Set(history.map(h => h.year))].sort().reverse();
+
+  const rows = history.length ? history.map(h => {
+    const variance = h.yieldActual && h.yieldBudget ? Math.round((h.yieldActual/h.yieldBudget - 1)*100) : null;
+    const varText = variance !== null ? `<span style="color:${variance>=0?'var(--ok)':'var(--danger)'}">${variance>=0?'+':''}${variance}%</span>` : '-';
+    return `<tr id="hr-${h.id}">
+      <td><input value="${h.year||''}" onchange="updateHistory('${h.id}','year',this.value)" style="width:70px"></td>
+      <td><input value="${h.paddock||''}" onchange="updateHistory('${h.id}','paddock',this.value)"></td>
+      <td><select onchange="updateHistory('${h.id}','crop',this.value)">${CROPS.map(c=>`<option${c===h.crop?' selected':''}>${c}</option>`).join('')}</select></td>
+      <td><input class="num" type="number" value="${h.ha||''}" onchange="updateHistory('${h.id}','ha',this.value)" style="width:60px"></td>
+      <td><input class="num" type="number" value="${h.yieldBudget||''}" onchange="updateHistory('${h.id}','yieldBudget',this.value)" style="width:80px"></td>
+      <td><input class="num" type="number" value="${h.yieldActual||''}" onchange="updateHistory('${h.id}','yieldActual',this.value)" style="width:80px"></td>
+      <td style="text-align:right">${varText}</td>
+      <td><input value="${h.notes||''}" onchange="updateHistory('${h.id}','notes',this.value)" placeholder="Notes"></td>
+      <td><button class="del-btn" onclick="deleteHistory('${h.id}')">x</button></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="9" style="color:var(--muted);padding:16px;text-align:center">No history yet — add prior year actuals here</td></tr>';
+
+  document.getElementById('tab-history').innerHTML = `
+    <div class="toolbar">
+      <div class="section-title" style="flex:1;border:none;margin:0">Yield History</div>
+      <button class="btn btn-primary btn-sm" onclick="addHistoryRow()">+ Add Record</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Year</th><th>Paddock</th><th>Crop</th><th style="text-align:right">Ha</th><th style="text-align:right">Budget kg/ha</th><th style="text-align:right">Actual kg/ha</th><th style="text-align:right">Variance</th><th>Notes</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="add-row"><button onclick="addHistoryRow()">+ Add record</button></div>
+    </div>`;
+}
+
+function addHistoryRow() {
+  const h = { id: uid(), year: '2025/26', paddock:'', crop:'Kale', ha:'', yieldBudget:'', yieldActual:'', notes:'' };
+  history.push(h);
+  save();
+  renderHistory();
+  const row = document.getElementById('hr-' + h.id);
+  if (row) row.querySelectorAll('input')[1].focus();
+}
+
+function updateHistory(id, field, val) {
+  const h = history.find(x => x.id === id);
+  if (h) { h[field] = val; save(); }
+}
+
+function deleteHistory(id) {
+  history = history.filter(x => x.id !== id);
+  save();
+  renderHistory();
+}
+
+// -- AI ADVISOR --
+function renderAI() {
+  document.getElementById('tab-ai').innerHTML = `
+    <div class="section-title">AI Advisor — ${settings.year}
+      <button class="btn btn-sm btn-ghost" onclick="saveAI()">Save Notes</button>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:12px">
+      At the start of each Claude session, I read the Sheets data and update this with yield predictions, flags, and feed budget analysis.
+      You can also type notes directly here.
+    </p>
+    <div class="form-group">
+      <textarea id="ai-notes" style="min-height:300px">${aiNotes}</textarea>
+    </div>
+    <div style="margin-bottom:16px;">
+      <div class="section-title" style="font-size:14px;">Auto-generated Flags</div>
+      <div class="flags-box">
+        ${buildFlags().map(f => `
+          <div class="flag-item">
+            <div class="flag-dot ${f.level}"></div>
+            <div><div class="flag-title">${f.title}</div><div class="flag-desc">${f.desc}</div></div>
+          </div>`).join('') || '<div class="no-flags">No flags.</div>'}
+      </div>
+    </div>`;
+}
+
+function saveAI() {
+  aiNotes = document.getElementById('ai-notes').value;
+  save();
+  logSync('AI notes saved');
+}
+
+// -- SETTINGS --
+function renderSettings() {
+  document.getElementById('tab-settings').innerHTML = `
+    <div class="section-title">Settings</div>
+    <div class="settings-grid">
+      <div>
+        <div class="form-group">
+          <label>Current Year</label>
+          <input id="s-year" value="${settings.year||''}">
+        </div>
+        <div class="form-group">
+          <label>Apps Script URL</label>
+          <input id="s-url" value="${settings.scriptUrl||''}" placeholder="https://script.google.com/macros/s/...">
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+          <button class="btn btn-ghost" onclick="toggleDisconnect()">${settings.disconnected?'Reconnect Sync':'Disconnect Sync'}</button>
+        </div>
+        <div style="margin-top:12px;font-size:12px;color:var(--muted)" id="sync-status-txt">
+          ${settings.disconnected ? 'Sync disconnected.' : 'Sync active.'}
+        </div>
+      </div>
+      <div>
+        <div class="form-group">
+          <label>Sync log</label>
+          <textarea id="sync-log-area" readonly style="min-height:120px;font-size:11px"></textarea>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:24px">
+      <div class="section-title" style="font-size:14px;">Gross Margin Templates (defaults when crop type selected)</div>
+      <div class="tbl-wrap" style="max-width:700px">
+        <table>
+          <thead><tr><th>Crop</th><th style="text-align:right">Yield kg/ha</th><th style="text-align:right">Seed $/ha</th><th style="text-align:right">Chem $/ha</th><th style="text-align:right">Fert $/ha</th><th style="text-align:right">Ops $/ha</th><th style="text-align:right">Total $/ha</th></tr></thead>
+          <tbody>
+            ${CROPS.filter(c=>c!=='Other').map(c => {
+              const g = GM[c];
+              const tot = g.seedHA + g.chemHA + g.fertHA + g.opsHA;
+              return `<tr><td><span class="tag ${CROP_TAG[c]||'tag-other'}">${c}</span></td>
+                <td style="text-align:right">${g.yieldKgHA.toLocaleString()}</td>
+                <td style="text-align:right">${g.seedHA}</td>
+                <td style="text-align:right">${g.chemHA}</td>
+                <td style="text-align:right">${g.fertHA}</td>
+                <td style="text-align:right">${g.opsHA}</td>
+                <td style="text-align:right;font-weight:700">${fmt$(tot)}/ha</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function saveSettings() {
+  settings.year        = document.getElementById('s-year')?.value || settings.year;
+  settings.scriptUrl   = document.getElementById('s-url')?.value || '';
+  settings.disconnected = false;
+  save();
+  startPoll();
+  logSync('Settings saved');
+  document.getElementById('hdr-sub').textContent = settings.year + ' · ' + APP_VER;
+}
+
+function toggleDisconnect() {
+  settings.disconnected = !settings.disconnected;
+  save();
+  renderSettings();
+  logSync(settings.disconnected ? 'Sync disconnected' : 'Sync reconnected');
+}
+
+// -- SYNC --
+function setSyncPill(cls, text) {
+  const el = document.getElementById('sync-pill');
+  el.className = cls;
+  el.textContent = text;
+}
+
+function logSync(msg) {
+  document.getElementById('sync-log').textContent = msg;
+  const ta = document.getElementById('sync-log-area');
+  if (ta) ta.value = new Date().toLocaleTimeString('en-NZ') + ' ' + msg + '\n' + ta.value;
+}
+
+function schedulePush() {
+  if (!syncPending && settings.scriptUrl && !settings.disconnected) {
+    syncPending = true;
+    setTimeout(pushToSheet, 1500);
+  }
+}
+
 async function pullFromSheet() {
-  if (!SCRIPT_URL || syncDisconnected) { renderAll(); return; }
-  setSyncPill('info','Pulling…');
+  if (!settings.scriptUrl || settings.disconnected) { renderAll(); return; }
+  setSyncPill('info', 'Pulling...');
   try {
-    const res = await fetch(SCRIPT_URL + '?action=pull', {cache:'no-store'});
+    const res = await fetch(settings.scriptUrl + '?action=pull', { cache: 'no-store' });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    if (Array.isArray(data.programme) && data.programme.length) programme = data.programme;
-    if (Array.isArray(data.silage)    && data.silage.length)    silage    = data.silage;
-    if (Array.isArray(data.paddocks)  && data.paddocks.length)  paddocks  = data.paddocks;
-    if (typeof data.aiNotes === 'string' && data.aiNotes) aiNotes = data.aiNotes;
-    lastSheetsTs = data.lastModified || 0;
-    localStorage.setItem('crop1_lastSheetsTs', lastSheetsTs);
-    saveLocal();
-    setSyncPill('ok','Synced');
-    logSync('Pulled from Sheets at ' + new Date().toLocaleTimeString('en-NZ'));
+    if (Array.isArray(data.cropPlan)    && data.cropPlan.length)    cropPlan    = data.cropPlan;
+    if (Array.isArray(data.stockReq)    && data.stockReq.length)    stockReq    = data.stockReq;
+    if (Array.isArray(data.supplements) && data.supplements.length) supplements = data.supplements;
+    if (Array.isArray(data.history)     && data.history.length)     history     = data.history;
+    if (typeof data.aiNotes === 'string' && data.aiNotes)           aiNotes     = data.aiNotes;
+    lastTs = data.lastModified || 0;
+    localStorage.setItem(NS+'lastTs', lastTs);
+    save();
+    setSyncPill('ok', 'Synced');
+    logSync('Pulled ' + new Date().toLocaleTimeString('en-NZ'));
   } catch(e) {
-    setSyncPill('warn','Sync error');
+    setSyncPill('warn', 'Offline');
     logSync('Pull failed: ' + e.message);
   }
   renderAll();
 }
 
 async function pushToSheet() {
-  if (!SCRIPT_URL || syncDisconnected) { syncPending = false; return; }
+  if (!settings.scriptUrl || settings.disconnected) { syncPending = false; return; }
   try {
-    const payload = {programme, silage, paddocks, aiNotes, clientTs: lastSheetsTs};
-    const url = SCRIPT_URL + '?action=push&data=' + encodeURIComponent(JSON.stringify(payload));
-    // no-cors fire-and-forget — can't read response due to redirect, update ts optimistically
-    fetch(url, {mode:'no-cors'}).catch(()=>{});
-    lastSheetsTs = Date.now();
-    localStorage.setItem('crop1_lastSheetsTs', lastSheetsTs);
-    setSyncPill('ok','Synced');
-    logSync('Pushed at ' + new Date().toLocaleTimeString('en-NZ'));
+    const payload = { cropPlan, stockReq, supplements, history, aiNotes, clientTs: lastTs };
+    const url = settings.scriptUrl + '?action=push&data=' + encodeURIComponent(JSON.stringify(payload));
+    fetch(url, { mode: 'no-cors' }).catch(() => {});
+    lastTs = Date.now();
+    localStorage.setItem(NS+'lastTs', lastTs);
+    setSyncPill('ok', 'Synced');
+    logSync('Pushed ' + new Date().toLocaleTimeString('en-NZ'));
   } catch(e) {
-    setSyncPill('warn','Push failed');
+    setSyncPill('warn', 'Push failed');
     logSync('Push failed: ' + e.message);
   }
   syncPending = false;
 }
 
 async function manualSync() {
-  if (syncDisconnected) { logSync('Sync is disconnected — reconnect in Settings'); return; }
+  if (settings.disconnected) { logSync('Sync disconnected'); return; }
   await pullFromSheet();
 }
 
 function startPoll() {
   clearInterval(pollTimer);
-  if (!SCRIPT_URL || syncDisconnected) return;
+  if (!settings.scriptUrl || settings.disconnected) return;
   pollTimer = setInterval(async () => {
     if (syncPending) return;
     try {
-      const res = await fetch(SCRIPT_URL + '?action=pull', {cache:'no-store', redirect:'follow'});
-      const data = await res.json();
-      if ((data.lastModified || 0) > lastSheetsTs) await pullFromSheet();
+      const res = await fetch(settings.scriptUrl + '?action=pull', { cache: 'no-store' });
+      const d = await res.json();
+      if ((d.lastModified || 0) > lastTs) await pullFromSheet();
     } catch(e) {}
   }, 30000);
 }
 
-function setSyncPill(type, text) {
-  const el = document.getElementById('sync-pill');
-  el.className = 'pill pill-' + type;
-  el.textContent = syncDisconnected ? 'Disconnected' : text;
-}
-
-function logSync(msg) {
-  const el = document.getElementById('sync-log');
-  if (el) el.textContent = msg;
-}
-
-function disconnectSync() {
-  syncDisconnected = true;
-  clearInterval(pollTimer);
-  setSyncPill('warn','Disconnected');
-  logSync('Sync disconnected at ' + new Date().toLocaleTimeString('en-NZ'));
-}
-
-// ── SETTINGS ──────────────────────────────────────────────────────────────
-function saveSettings() {
-  SCRIPT_URL = document.getElementById('settings-url').value.trim();
-  cpYear = document.getElementById('settings-year').value;
-  budYear = cpYear;
-  syncDisconnected = false;
-  const s = {scriptUrl: SCRIPT_URL, currentYear: cpYear};
-  localStorage.setItem('crop1_settings', JSON.stringify(s));
-  logSync('Settings saved');
-  setSyncPill('muted','Ready');
-  startPoll();
-  renderAll();
-}
-
-// ── TAB NAVIGATION ────────────────────────────────────────────────────────
-function showTab(id) {
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  const panel = document.getElementById('tab-' + id);
-  const btn   = document.getElementById('tbtn-' + id);
-  if (panel) panel.classList.add('active');
-  if (btn) btn.classList.add('active');
-  activeTab = id;
-  if (id === 'cropplan') renderCropPlan();
-  if (id === 'yields')   renderYields();
-  if (id === 'silage')   renderSilage();
-  if (id === 'budget')   renderBudget();
-  if (id === 'paddocks') renderPaddocks();
-  if (id === 'ai')       renderAI();
-  if (id === 'dashboard') renderDashboard();
-}
-
-// ── UTILITIES ─────────────────────────────────────────────────────────────
-function uid() { return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2,8); }
-function fmt(n) { return n == null ? '—' : Number(n).toLocaleString('en-NZ'); }
-function fmtDol(n) { return n == null ? '—' : '$' + Math.round(n).toLocaleString('en-NZ'); }
-function cropTag(c) { return '<span class="tag ' + (CROP_TAG[c]||'tag-muted') + '">' + (c||'') + '</span>'; }
-
-function calcDM(rec) {
-  const pct = DM_PCT[rec.crop] || 0.15;
-  return rec.ha * (rec.yieldBudget || 0) * pct * 0.90;
-}
-function calcDMActual(rec) {
-  if (!rec.yieldActual) return null;
-  const pct = DM_PCT[rec.crop] || 0.15;
-  return rec.ha * rec.yieldActual * pct * 0.90;
-}
-function calcCostHa(rec) { return (rec.costSeed||0) + (rec.costChem||0) + (rec.costFert||0) + (rec.costOps||0); }
-function calcCostTotal(rec) { return rec.ha * calcCostHa(rec); }
-
-// ── DASHBOARD ─────────────────────────────────────────────────────────────
-function renderDashboard() {
-  const yr = cpYear;
-  const prog = programme.filter(r => r.year === yr);
-  const totalHa = prog.reduce((s,r) => s + (r.ha||0), 0);
-  const totalDM = prog.reduce((s,r) => s + calcDM(r), 0);
-  const totalCost = prog.reduce((s,r) => s + calcCostTotal(r), 0);
-  const totalSilDM = silage.reduce((s,r) => s + (r.kgDMCurrent||0), 0);
-
-  document.getElementById('dash-year-label').textContent = yr;
-  document.getElementById('hdr-sub').textContent = 'v' + APP_VERSION + ' · ' + yr + ' · ' + new Date().toLocaleDateString('en-NZ',{day:'numeric',month:'short',year:'numeric'});
-
-  document.getElementById('dash-stats').innerHTML = [
-    {label:'Total Crop Ha', val:totalHa.toFixed(1)+' ha', sub:prog.length + ' paddocks'},
-    {label:'Total DM Budget', val:Math.round(totalDM/1000)+'t DM', sub:'Crop supply'},
-    {label:'Silage Inventory', val:Math.round(totalSilDM/1000)+'t DM', sub:silage.length+' stacks'},
-    {label:'Programme Cost', val:'$'+Math.round(totalCost/1000)+'k', sub:yr+' budget'},
-  ].map(s => `<div class="stat-box"><div class="stat-label">${s.label}</div><div class="stat-val">${s.val}</div><div class="stat-sub">${s.sub}</div></div>`).join('');
-
-  // Crop summary by type
-  const byType = {};
-  prog.forEach(r => {
-    if (!byType[r.crop]) byType[r.crop] = {ha:0,dm:0};
-    byType[r.crop].ha += r.ha||0;
-    byType[r.crop].dm += calcDM(r);
-  });
-  const rows = Object.entries(byType).sort((a,b)=>b[1].ha-a[1].ha).map(([crop,d]) =>
-    `<tr><td>${cropTag(crop)}</td><td style="text-align:right">${d.ha.toFixed(1)}</td><td style="text-align:right">${Math.round(d.dm/1000)}t</td></tr>`
-  ).join('');
-  document.getElementById('dash-crop-summary').innerHTML =
-    `<table style="font-size:13px"><thead><tr><th style="background:var(--soil);color:var(--cream);padding:6px 10px">Crop</th><th style="background:var(--soil);color:var(--cream);padding:6px 10px;text-align:right">Ha</th><th style="background:var(--soil);color:var(--cream);padding:6px 10px;text-align:right">DM Budget</th></tr></thead><tbody>${rows}</tbody></table>`;
-
-  // Flags
-  const flags = buildFlags();
-  document.getElementById('dash-flags').innerHTML = flags.length
-    ? flags.slice(0,6).map(f => `<div class="flag-card ${f.level}"><div class="flag-title">${f.title}</div><div class="flag-body">${f.body}</div></div>`).join('')
-    : '<div class="flag-body" style="color:var(--ok)">No critical flags for ' + yr + '</div>';
-
-  // AI preview
-  document.getElementById('dash-ai-preview').textContent = aiNotes.slice(0,600);
-}
-
-function buildFlags() {
-  const flags = [];
-  const prog = programme.filter(r => r.year === cpYear);
-
-  // Check silage quality
-  silage.forEach(s => {
-    if (s.qualityRating === 'Very Poor') flags.push({level:'danger',title:'Very Poor Silage: ' + s.name,body:'ME ' + s.me + ' MJ/kgDM — ' + s.notes.substring(0,80)});
-  });
-
-  // Check pH
-  paddocks.forEach(p => {
-    if (p.pH && p.pH < 5.4) {
-      const cr = prog.find(r => r.paddock === p.name);
-      if (cr) flags.push({level:'warn',title:'Low pH: ' + p.name,body:'pH ' + p.pH + ' — crop ' + cr.crop + '. Consider lime before planting.'});
-    }
-  });
-
-  // Check low K on maize
-  paddocks.forEach(p => {
-    if (p.K && p.K <= 4) {
-      const cr = prog.find(r => r.paddock === p.name);
-      if (cr) flags.push({level:'warn',title:'Very Low K: ' + p.name,body:'K = ' + p.K + ' (' + cr.crop + '). Apply potassium fertiliser.'});
-    }
-  });
-
-  // Check low P
-  paddocks.forEach(p => {
-    if (p.olsenP && p.olsenP < 16) {
-      const cr = prog.find(r => r.paddock === p.name);
-      if (cr) flags.push({level:'warn',title:'Low Olsen P: ' + p.name,body:'Olsen P = ' + p.olsenP + ' — fertilise with P pre-' + cr.crop});
-    }
-  });
-
-  flags.push({level:'warn',title:'Selenium — Systemic Deficiency',body:'All pasture tests <0.02 mg/kg Se. Target 0.05–0.15. Check ALL stock classes are supplemented.'});
-
-  return flags;
-}
-
-// ── CROP PLAN ─────────────────────────────────────────────────────────────
-function renderCropPlan() {
-  const prog = programme.filter(r => r.year === cpYear).sort((a,b)=>a.crop.localeCompare(b.crop)||a.paddock.localeCompare(b.paddock));
-
-  // Year buttons
-  document.getElementById('cp-years').innerHTML = YEARS.map(y =>
-    `<button class="year-btn ${y===cpYear?'active':''}" onclick="setCpYear('${y}')">${y}</button>`
-  ).join('');
-
-  // Summary stats
-  const totHa = prog.reduce((s,r)=>s+(r.ha||0),0);
-  const totDM = prog.reduce((s,r)=>s+calcDM(r),0);
-  const totCost = prog.reduce((s,r)=>s+calcCostTotal(r),0);
-  const totActuals = prog.filter(r=>r.yieldActual!=null).length;
-  document.getElementById('cp-summary').innerHTML = [
-    {label:'Paddocks',val:prog.length,sub:totActuals+' with actuals'},
-    {label:'Total Ha',val:totHa.toFixed(1)+' ha',sub:''},
-    {label:'Total DM Budget',val:Math.round(totDM/1000)+'t DM',sub:''},
-    {label:'Programme Cost',val:'$'+Math.round(totCost/1000)+'k',sub:''},
-  ].map(s=>`<div class="stat-box"><div class="stat-label">${s.label}</div><div class="stat-val">${s.val}</div><div class="stat-sub">${s.sub}</div></div>`).join('');
-
-  // Populate datalist
-  const names = [...new Set(paddocks.map(p=>p.name))].sort();
-  document.getElementById('paddock-list').innerHTML = names.map(n=>`<option value="${n}">`).join('');
-
-  // Table
-  const tbody = document.getElementById('cp-tbody');
-  if (!prog.length) { tbody.innerHTML = `<tr><td colspan="10" class="empty-state">No records for ${cpYear}. Click + Add Paddock.</td></tr>`; return; }
-  tbody.innerHTML = prog.map(r => {
-    const dm = calcDM(r);
-    const costHa = calcCostHa(r);
-    const actPct = r.yieldActual ? Math.round(r.yieldActual/r.yieldBudget*100) : null;
-    return `<tr>
-      <td><strong>${r.paddock}</strong></td>
-      <td>${cropTag(r.crop)}</td>
-      <td style="text-align:right">${r.ha}</td>
-      <td style="text-align:right">${fmt(r.yieldBudget)}</td>
-      <td style="text-align:right">${r.yieldActual != null ? fmt(r.yieldActual) : '<span style="color:var(--muted)">—</span>'}</td>
-      <td style="text-align:right">${Math.round(dm/1000)}t</td>
-      <td style="text-align:right">${fmtDol(costHa)}</td>
-      <td style="text-align:right">${fmtDol(calcCostTotal(r))}</td>
-      <td style="max-width:160px;font-size:12px;color:var(--muted)">${r.notes||''}</td>
-      <td><button class="icon-btn" onclick="openCropModal('${r.id}')">Edit</button></td>
-    </tr>`;
-  }).join('');
-
-  // Totals
-  document.getElementById('cp-tfoot').innerHTML = `<tr>
-    <td colspan="2"><strong>Total</strong></td>
-    <td style="text-align:right"><strong>${totHa.toFixed(1)}</strong></td>
-    <td colspan="2"></td>
-    <td style="text-align:right"><strong>${Math.round(totDM/1000)}t DM</strong></td>
-    <td></td>
-    <td style="text-align:right"><strong>${fmtDol(totCost)}</strong></td>
-    <td colspan="2"></td>
-  </tr>`;
-}
-
-function setCpYear(y) { cpYear = y; renderCropPlan(); }
-
-// ── YIELD HISTORY ─────────────────────────────────────────────────────────
-function renderYields() {
-  const allWithActuals = programme.filter(r => r.yieldActual != null);
-  if (!allWithActuals.length) {
-    document.getElementById('yield-matrix-wrap').innerHTML = '<div class="empty-state"><p>No actual yields recorded yet. Edit crop plan records to add actuals.</p></div>';
-    return;
-  }
-  const years = [...new Set(allWithActuals.map(r=>r.year))].sort();
-  const pnames = [...new Set(allWithActuals.map(r=>r.paddock))].sort();
-  let html = `<table class="yield-matrix"><thead><tr><th>Paddock</th><th>Crop</th>`;
-  years.forEach(y => html += `<th>${y}</th>`);
-  html += '</tr></thead><tbody>';
-  pnames.forEach(pname => {
-    const recs = allWithActuals.filter(r=>r.paddock===pname);
-    const crop = recs[0]?.crop || '';
-    html += `<tr><td><strong>${pname}</strong></td><td>${cropTag(crop)}</td>`;
-    years.forEach(y => {
-      const r = recs.find(rec=>rec.year===y);
-      if (!r) { html += '<td class="yield-cell">—</td>'; return; }
-      const pct = Math.round(r.yieldActual/r.yieldBudget*100);
-      const cls = pct >= 100 ? 'above' : pct >= 90 ? 'near' : 'below';
-      html += `<td class="yield-cell ${cls}" title="${r.crop} — ${pct}% of budget">${fmt(r.yieldActual)}<br><span style="font-size:10px">${pct}%</span></td>`;
-    });
-    html += '</tr>';
-  });
-  html += '</tbody></table>';
-  document.getElementById('yield-matrix-wrap').innerHTML = html;
-}
-
-// ── SILAGE ────────────────────────────────────────────────────────────────
-function renderSilage() {
-  const totalDM = silage.reduce((s,r)=>s+(r.kgDMCurrent||0),0);
-  const poorCount = silage.filter(r=>['Poor','Very Poor'].includes(r.qualityRating)).length;
-  document.getElementById('sil-totals').innerHTML =
-    `<strong>${Math.round(totalDM/1000)}t DM</strong> total inventory across ${silage.length} stacks` +
-    (poorCount ? ` &nbsp;<span class="tag tag-danger">${poorCount} poor quality</span>` : '');
-
-  const qualColour = {Excellent:'var(--ok)',Good:'var(--ok)',Acceptable:'var(--warn)','Poor':'var(--danger)','Very Poor':'var(--danger)'};
-  const cards = [...silage].sort((a,b) => {
-    const order = {Excellent:0,Good:1,Acceptable:2,Poor:3,'Very Poor':4};
-    return (order[a.qualityRating]||5)-(order[b.qualityRating]||5);
-  }).map(s => {
-    const col = qualColour[s.qualityRating] || 'var(--muted)';
-    const tagCls = ['Poor','Very Poor'].includes(s.qualityRating) ? 'tag-danger' : s.qualityRating==='Acceptable' ? 'tag-warn' : 'tag-ok';
-    return `<div class="sil-card" style="border-left:3px solid ${col}">
-      <div class="sil-name">${s.name}</div>
-      <div class="sil-meta">${s.type} · ${s.season||''} &nbsp;<span class="tag ${tagCls}">${s.qualityRating}</span></div>
-      <div class="sil-stats">
-        <div class="sil-stat"><div class="sil-stat-label">DM%</div><div class="sil-stat-val">${s.dm||'—'}%</div></div>
-        <div class="sil-stat"><div class="sil-stat-label">ME</div><div class="sil-stat-val">${s.me||'—'}</div></div>
-        <div class="sil-stat"><div class="sil-stat-label">CP%</div><div class="sil-stat-val">${s.cp||'—'}%</div></div>
-        <div class="sil-stat"><div class="sil-stat-label">pH</div><div class="sil-stat-val">${s.ph||'—'}</div></div>
-        <div class="sil-stat"><div class="sil-stat-label">Lactic</div><div class="sil-stat-val">${s.lactic||'—'}%</div></div>
-        <div class="sil-stat"><div class="sil-stat-label">kg DM</div><div class="sil-stat-val">${s.kgDMCurrent ? Math.round(s.kgDMCurrent/1000)+'t' : '—'}</div></div>
-      </div>
-      ${s.notes ? `<div style="font-size:11px;color:var(--muted);border-top:1px solid var(--fog);padding-top:8px;margin-top:4px">${s.notes}</div>` : ''}
-      <div style="text-align:right;margin-top:8px"><button class="icon-btn" onclick="openSilageModal('${s.id}')">Edit</button></div>
-    </div>`;
-  }).join('');
-  document.getElementById('sil-cards').innerHTML = cards || '<div class="empty-state"><p>No silage stacks. Click + Add Stack.</p></div>';
-  calcCut();
-}
-
-function calcCut() {
-  const target = Number(document.getElementById('cut-target').value) || 0;
-  const crop = document.getElementById('cut-crop').value;
-  const util = (Number(document.getElementById('cut-util').value) || 85) / 100;
-  const dmPerHa = {grass:4500,maize:6000,lucerne:4000,baleage:3500};
-  const base = dmPerHa[crop] || 4500;
-  const ha = target / (base * util);
-  document.getElementById('cut-result').textContent = `Cut ${ha.toFixed(1)} ha to achieve ${Math.round(target/1000)}t DM target`;
-}
-
-// ── BUDGET ────────────────────────────────────────────────────────────────
-function renderBudget() {
-  const prog = programme.filter(r=>r.year===budYear).sort((a,b)=>a.crop.localeCompare(b.crop)||a.paddock.localeCompare(b.paddock));
-
-  document.getElementById('bud-years').innerHTML = YEARS.map(y =>
-    `<button class="year-btn ${y===budYear?'active':''}" onclick="setBudYear('${y}')">${y}</button>`
-  ).join('');
-
-  const totBud = prog.reduce((s,r)=>s+calcCostTotal(r),0);
-  document.getElementById('bud-summary').innerHTML = [
-    {label:'Paddocks',val:prog.length},
-    {label:'Budget Total',val:'$'+Math.round(totBud/1000)+'k'},
-    {label:'Avg $/ha',val:prog.length ? '$'+Math.round(totBud/prog.reduce((s,r)=>s+(r.ha||0),0)) : '—'},
-  ].map(s=>`<div class="stat-box"><div class="stat-label">${s.label}</div><div class="stat-val">${s.val}</div></div>`).join('');
-
-  const tbody = document.getElementById('bud-tbody');
-  if (!prog.length) { tbody.innerHTML=`<tr><td colspan="11" class="empty-state">No records for ${budYear}.</td></tr>`; return; }
-  tbody.innerHTML = prog.map(r => {
-    const budTotal = calcCostTotal(r);
-    const actTotal = r.costActualTotal != null ? r.costActualTotal : null;
-    const variance = actTotal != null ? actTotal - budTotal : null;
-    return `<tr>
-      <td><strong>${r.paddock}</strong></td>
-      <td>${cropTag(r.crop)}</td>
-      <td style="text-align:right">${r.ha}</td>
-      <td style="text-align:right">${fmtDol((r.costSeed||0)*r.ha)}</td>
-      <td style="text-align:right">${fmtDol((r.costChem||0)*r.ha)}</td>
-      <td style="text-align:right">${fmtDol((r.costFert||0)*r.ha)}</td>
-      <td style="text-align:right">${fmtDol((r.costOps||0)*r.ha)}</td>
-      <td style="text-align:right"><strong>${fmtDol(budTotal)}</strong></td>
-      <td style="text-align:right">${actTotal!=null ? fmtDol(actTotal) : '<span style="color:var(--muted)">—</span>'}</td>
-      <td style="text-align:right">${variance!=null ? (variance>0?'<span style="color:var(--danger)">+'+fmtDol(variance)+'</span>':'<span style="color:var(--ok)">'+fmtDol(variance)+'</span>') : '—'}</td>
-      <td><button class="icon-btn" onclick="openCropModal('${r.id}')">Edit</button></td>
-    </tr>`;
-  }).join('');
-
-  document.getElementById('bud-tfoot').innerHTML = `<tr>
-    <td colspan="7"><strong>Total</strong></td>
-    <td style="text-align:right"><strong>${fmtDol(totBud)}</strong></td>
-    <td colspan="3"></td>
-  </tr>`;
-}
-
-function setBudYear(y) { budYear = y; renderBudget(); }
-
-// ── PADDOCKS ──────────────────────────────────────────────────────────────
-function renderPaddocks() {
-  const q = (document.getElementById('pad-search')?.value||'').toLowerCase();
-  const list = paddocks.filter(p => !q || p.name.toLowerCase().includes(q));
-
-  const tbody = document.getElementById('pad-tbody');
-  if (!list.length) { tbody.innerHTML='<tr><td colspan="9" class="empty-state">No paddocks found.</td></tr>'; return; }
-
-  const curProg = programme.filter(r=>r.year===cpYear);
-
-  tbody.innerHTML = list.sort((a,b)=>a.name.localeCompare(b.name)).map(p => {
-    const curCrop = curProg.find(r=>r.paddock===p.name)?.crop || '—';
-    const flags = [];
-    if (p.pH && p.pH < 5.5) flags.push(`<span class="tag tag-danger">Low pH ${p.pH}</span>`);
-    if (p.K && p.K <= 4)    flags.push(`<span class="tag tag-warn">Low K ${p.K}</span>`);
-    if (p.olsenP && p.olsenP < 16) flags.push(`<span class="tag tag-warn">Low P ${p.olsenP}</span>`);
-    if (p.S && p.S > 50)    flags.push(`<span class="tag tag-info">High S ${p.S}</span>`);
-    return `<tr>
-      <td><strong>${p.name}</strong></td>
-      <td style="text-align:right">${p.area||'—'}</td>
-      <td style="text-align:right">${p.pH||'—'}</td>
-      <td style="text-align:right">${p.olsenP||'—'}</td>
-      <td style="text-align:right">${p.K||'—'}</td>
-      <td style="text-align:right">${p.S||'—'}</td>
-      <td>${curCrop !== '—' ? cropTag(curCrop) : '<span style="color:var(--muted)">—</span>'}</td>
-      <td>${flags.join(' ')}</td>
-      <td><button class="icon-btn" onclick="openPaddockModal('${p.id}')">Edit</button></td>
-    </tr>`;
-  }).join('');
-}
-
-// ── AI ADVISOR ────────────────────────────────────────────────────────────
-function renderAI() {
-  document.getElementById('ai-view').textContent = aiNotes;
-  document.getElementById('ai-edit').value = aiNotes;
-
-  // Auto flags
-  const flags = buildFlags();
-  document.getElementById('ai-flags').innerHTML = flags.map(f =>
-    `<div class="flag-card ${f.level}" style="margin-bottom:6px"><div class="flag-title">${f.title}</div><div class="flag-body">${f.body}</div></div>`
-  ).join('') || '<div class="flag-body" style="color:var(--ok)">No automatic flags.</div>';
-
-  // Yield predictions
-  const byType = {};
-  programme.filter(r=>r.year===cpYear).forEach(r => {
-    if (!byType[r.crop]) byType[r.crop] = {ha:0,budget:0};
-    byType[r.crop].ha += r.ha||0;
-    byType[r.crop].budget = r.yieldBudget;
-  });
-  document.getElementById('yield-pred-tbody').innerHTML = Object.entries(byType).map(([crop,d])=>`
-    <tr>
-      <td style="padding:6px 10px">${cropTag(crop)}</td>
-      <td style="padding:6px 10px;text-align:right">${fmt(d.budget)}</td>
-      <td style="padding:6px 10px;text-align:right;color:var(--muted)">—</td>
-    </tr>`).join('');
-}
-
-function toggleAIEdit() {
-  const view = document.getElementById('ai-view');
-  const edit = document.getElementById('ai-edit');
-  const btn  = document.getElementById('ai-edit-btn');
-  const save = document.getElementById('ai-save-btn');
-  if (edit.style.display === 'none') {
-    edit.style.display = 'block';
-    view.style.display = 'none';
-    btn.textContent = 'Cancel';
-    save.style.display = 'inline-block';
-    edit.focus();
-  } else {
-    edit.style.display = 'none';
-    view.style.display = 'block';
-    btn.textContent = 'Edit';
-    save.style.display = 'none';
-  }
-}
-
-function saveAINotes() {
-  aiNotes = document.getElementById('ai-edit').value;
-  document.getElementById('ai-view').textContent = aiNotes;
-  toggleAIEdit();
-  saveAll();
-}
-
-// ── CROP MODAL ────────────────────────────────────────────────────────────
-function openCropModal(id) {
-  const r = id ? programme.find(p=>p.id===id) : null;
-  document.getElementById('crop-modal-title').textContent = r ? 'Edit: ' + r.paddock : 'Add Paddock';
-  document.getElementById('cm-id').value = id || '';
-  document.getElementById('cm-paddock').value = r?.paddock || '';
-  document.getElementById('cm-year').value = r?.year || cpYear;
-  document.getElementById('cm-crop').value = r?.crop || 'Kale';
-  document.getElementById('cm-ha').value = r?.ha || '';
-  document.getElementById('cm-yield-budget').value = r?.yieldBudget || '';
-  document.getElementById('cm-yield-actual').value = r?.yieldActual || '';
-  document.getElementById('cm-seed').value = r?.costSeed || '';
-  document.getElementById('cm-chem').value = r?.costChem || '';
-  document.getElementById('cm-fert').value = r?.costFert || '';
-  document.getElementById('cm-ops').value = r?.costOps || '';
-  document.getElementById('cm-notes').value = r?.notes || '';
-  document.getElementById('cm-delete-btn').style.display = r ? 'inline-block' : 'none';
-  if (!r) onCropChange();
-  document.getElementById('crop-modal-overlay').classList.add('open');
-}
-
-function closeCropModal() { document.getElementById('crop-modal-overlay').classList.remove('open'); }
-
-function onCropChange() {
-  const crop = document.getElementById('cm-crop').value;
-  const def = COST_DEFAULT[crop];
-  if (def) {
-    document.getElementById('cm-seed').value = def.seed;
-    document.getElementById('cm-chem').value = def.chem;
-    document.getElementById('cm-fert').value = def.fert;
-    document.getElementById('cm-ops').value  = def.ops;
-  }
-  if (YIELD_DEFAULT[crop] && !document.getElementById('cm-yield-budget').value) {
-    document.getElementById('cm-yield-budget').value = YIELD_DEFAULT[crop];
-  }
-}
-
-function saveCropRecord() {
-  const id = document.getElementById('cm-id').value;
-  const rec = {
-    id: id || uid(),
-    paddock: document.getElementById('cm-paddock').value.trim(),
-    year: document.getElementById('cm-year').value,
-    crop: document.getElementById('cm-crop').value,
-    ha: parseFloat(document.getElementById('cm-ha').value) || 0,
-    yieldBudget: parseFloat(document.getElementById('cm-yield-budget').value) || null,
-    yieldActual: document.getElementById('cm-yield-actual').value ? parseFloat(document.getElementById('cm-yield-actual').value) : null,
-    costSeed: parseFloat(document.getElementById('cm-seed').value) || 0,
-    costChem: parseFloat(document.getElementById('cm-chem').value) || 0,
-    costFert: parseFloat(document.getElementById('cm-fert').value) || 0,
-    costOps:  parseFloat(document.getElementById('cm-ops').value)  || 0,
-    notes: document.getElementById('cm-notes').value.trim(),
-  };
-  if (!rec.paddock || !rec.crop) return;
-  if (id) { const i = programme.findIndex(p=>p.id===id); if (i>=0) programme[i]=rec; }
-  else programme.push(rec);
-  closeCropModal();
-  saveAll();
-  renderCropPlan(); renderDashboard(); renderBudget();
-}
-
-function deleteCropRecord() {
-  const id = document.getElementById('cm-id').value;
-  if (!id || !confirm('Delete this record?')) return;
-  programme = programme.filter(p=>p.id!==id);
-  closeCropModal();
-  saveAll();
-  renderCropPlan(); renderDashboard();
-}
-
-// ── SILAGE MODAL ──────────────────────────────────────────────────────────
-function openSilageModal(id) {
-  const s = id ? silage.find(x=>x.id===id) : null;
-  document.getElementById('sil-modal-title').textContent = s ? 'Edit: ' + s.name : 'Add Silage Stack';
-  document.getElementById('sm-id').value = id || '';
-  document.getElementById('sm-name').value = s?.name || '';
-  document.getElementById('sm-type').value = s?.type || 'Grass Silage';
-  document.getElementById('sm-season').value = s?.season || '';
-  document.getElementById('sm-dm').value = s?.dm || '';
-  document.getElementById('sm-me').value = s?.me || '';
-  document.getElementById('sm-cp').value = s?.cp || '';
-  document.getElementById('sm-ph').value = s?.ph || '';
-  document.getElementById('sm-lactic').value = s?.lactic || '';
-  document.getElementById('sm-quality').value = s?.qualityRating || 'Good';
-  document.getElementById('sm-opening').value = s?.kgDMOpening || '';
-  document.getElementById('sm-current').value = s?.kgDMCurrent || '';
-  document.getElementById('sm-notes').value = s?.notes || '';
-  document.getElementById('sm-delete-btn').style.display = s ? 'inline-block' : 'none';
-  document.getElementById('sil-modal-overlay').classList.add('open');
-}
-
-function closeSilageModal() { document.getElementById('sil-modal-overlay').classList.remove('open'); }
-
-function saveSilageStack() {
-  const id = document.getElementById('sm-id').value;
-  const rec = {
-    id: id || uid(),
-    name: document.getElementById('sm-name').value.trim(),
-    type: document.getElementById('sm-type').value,
-    season: document.getElementById('sm-season').value,
-    dm: parseFloat(document.getElementById('sm-dm').value)||null,
-    me: parseFloat(document.getElementById('sm-me').value)||null,
-    cp: parseFloat(document.getElementById('sm-cp').value)||null,
-    ph: parseFloat(document.getElementById('sm-ph').value)||null,
-    lactic: parseFloat(document.getElementById('sm-lactic').value)||null,
-    qualityRating: document.getElementById('sm-quality').value,
-    kgDMOpening: parseFloat(document.getElementById('sm-opening').value)||null,
-    kgDMCurrent: parseFloat(document.getElementById('sm-current').value)||null,
-    notes: document.getElementById('sm-notes').value.trim(),
-  };
-  if (!rec.name) return;
-  if (id) { const i = silage.findIndex(x=>x.id===id); if(i>=0) silage[i]=rec; }
-  else silage.push(rec);
-  closeSilageModal();
-  saveAll();
-  renderSilage(); renderDashboard();
-}
-
-function deleteSilageStack() {
-  const id = document.getElementById('sm-id').value;
-  if (!id || !confirm('Delete this stack?')) return;
-  silage = silage.filter(x=>x.id!==id);
-  closeSilageModal();
-  saveAll();
-  renderSilage(); renderDashboard();
-}
-
-// ── PADDOCK MODAL ─────────────────────────────────────────────────────────
-function openPaddockModal(id) {
-  const p = id ? paddocks.find(x=>x.id===id) : null;
-  document.getElementById('pad-modal-title').textContent = p ? 'Edit: ' + p.name : 'Add Paddock to Register';
-  document.getElementById('pm-id').value = id || '';
-  document.getElementById('pm-name').value = p?.name || '';
-  document.getElementById('pm-area').value = p?.area || '';
-  document.getElementById('pm-ph').value = p?.pH || '';
-  document.getElementById('pm-p').value = p?.olsenP || '';
-  document.getElementById('pm-k').value = p?.K || '';
-  document.getElementById('pm-s').value = p?.S || '';
-  document.getElementById('pm-notes').value = p?.notes || '';
-  document.getElementById('pm-delete-btn').style.display = p ? 'inline-block' : 'none';
-  document.getElementById('pad-modal-overlay').classList.add('open');
-}
-
-function closePaddockModal() { document.getElementById('pad-modal-overlay').classList.remove('open'); }
-
-function savePaddock() {
-  const id = document.getElementById('pm-id').value;
-  const rec = {
-    id: id || uid(),
-    name: document.getElementById('pm-name').value.trim(),
-    area: parseFloat(document.getElementById('pm-area').value)||null,
-    pH: parseFloat(document.getElementById('pm-ph').value)||null,
-    olsenP: parseFloat(document.getElementById('pm-p').value)||null,
-    K: parseFloat(document.getElementById('pm-k').value)||null,
-    S: parseFloat(document.getElementById('pm-s').value)||null,
-    notes: document.getElementById('pm-notes').value.trim(),
-  };
-  if (!rec.name) return;
-  if (id) { const i = paddocks.findIndex(x=>x.id===id); if(i>=0) paddocks[i]=rec; }
-  else paddocks.push(rec);
-  closePaddockModal();
-  saveAll();
-  renderPaddocks();
-}
-
-function deletePaddock() {
-  const id = document.getElementById('pm-id').value;
-  if (!id || !confirm('Delete this paddock from the register?')) return;
-  paddocks = paddocks.filter(x=>x.id!==id);
-  closePaddockModal();
-  saveAll();
-  renderPaddocks();
-}
-
-// ── RENDER ALL ────────────────────────────────────────────────────────────
-function renderAll() {
-  renderDashboard();
-  if (activeTab !== 'dashboard') {
-    if (activeTab === 'cropplan') renderCropPlan();
-    else if (activeTab === 'yields') renderYields();
-    else if (activeTab === 'silage') renderSilage();
-    else if (activeTab === 'budget') renderBudget();
-    else if (activeTab === 'paddocks') renderPaddocks();
-    else if (activeTab === 'ai') renderAI();
-  }
-}
-
-// Close modals on overlay click
-['crop-modal-overlay','sil-modal-overlay','pad-modal-overlay'].forEach(id => {
-  document.getElementById(id).addEventListener('click', function(e) {
-    if (e.target === this) this.classList.remove('open');
-  });
-});
-
-// ── INIT ──────────────────────────────────────────────────────────────────
-loadAll();
+// -- INIT --
+load();
 renderAll();
-pullFromSheet();
+if (settings.scriptUrl && !settings.disconnected) pullFromSheet();
+else setSyncPill('', settings.scriptUrl ? 'Offline' : 'No URL');
 startPoll();
 </script>
 </body>
