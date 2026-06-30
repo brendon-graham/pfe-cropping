@@ -782,22 +782,12 @@ function saveAll() {
 }
 
 // ── SYNC ──────────────────────────────────────────────────────────────────
-function jsonpFetch(url) {
-  return new Promise((resolve, reject) => {
-    const cb = 'crop1cb_' + Date.now();
-    const s = document.createElement('script');
-    window[cb] = (data) => { delete window[cb]; document.head.removeChild(s); resolve(data); };
-    s.onerror = () => { delete window[cb]; document.head.removeChild(s); reject(new Error('Script load failed')); };
-    s.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cb;
-    document.head.appendChild(s);
-  });
-}
-
 async function pullFromSheet() {
   if (!SCRIPT_URL || syncDisconnected) { renderAll(); return; }
   setSyncPill('info','Pulling…');
   try {
-    const data = await jsonpFetch(SCRIPT_URL + '?action=pull');
+    const res = await fetch(SCRIPT_URL + '?action=pull', {cache:'no-store'});
+    const data = await res.json();
     if (data.error) throw new Error(data.error);
     if (Array.isArray(data.programme) && data.programme.length) programme = data.programme;
     if (Array.isArray(data.silage)    && data.silage.length)    silage    = data.silage;
