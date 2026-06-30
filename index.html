@@ -238,6 +238,7 @@ function load() {
   aiNotes     = localStorage.getItem(NS+'ai') || '';
   settings    = JSON.parse(localStorage.getItem(NS+'settings') || '{}');
   settings.year = settings.year || YEAR;
+  settings.scriptUrl = settings.scriptUrl || 'https://script.google.com/macros/s/AKfycbxaPkRHrWqjfqgMCaV-s-uZYSvVIFgOyC5IpKg5J6_CLv_5gEkP7_SukyHOYhTvEYI2jQ/exec';
   lastTs      = Number(localStorage.getItem(NS+'lastTs') || 0);
 }
 
