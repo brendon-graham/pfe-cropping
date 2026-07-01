@@ -6,8 +6,10 @@
 // v2.7: sheetToRows maps by header row (not position); rowsToSheet uses clearContents
 //       (deleteRows failed once grid == data size, silently blocking every push).
 // v2.8: GrossMargins sheet — full line-item crop input costings from Cropping plan 27.xlsx.
+// v2.9: 'winterUse' appended to end of CROP_COLS (Winter feed / To silage / Summer feed).
+//       New Pasture sheet — winter pasture supply blocks (saved pasture + winter growth).
 
-const CROP_COLS      = ['id','paddock','crop','ha','drillDate','yieldKgHA','wastage','actualYieldKgHA','seedHA','chemHA','fertHA','opsHA','notes','year'];
+const CROP_COLS      = ['id','paddock','crop','ha','drillDate','yieldKgHA','wastage','actualYieldKgHA','seedHA','chemHA','fertHA','opsHA','notes','year','winterUse'];
 const STOCK_COLS     = ['id','species','cls','headPrev','headCurr','kgDMday','period','days','feedSource','notes','year'];
 const SUPP_COLS      = ['id','name','type','kgDM','costPerKgDM','notes','year'];
 const PADDOCK_COLS   = ['id','name','ha','soilType','notes'];
@@ -15,6 +17,7 @@ const SOILTEST_COLS  = ['id','paddockId','date','pH','olsenP','qtK','ss','qtCa',
 const LIMEEVENT_COLS = ['id','paddockId','date','rateT','notes'];
 const HIST_COLS      = ['id','year','paddock','crop','ha','yieldBudget','yieldActual','notes'];
 const GMITEM_COLS    = ['id','crop','category','item','price','packSize','unit','ratePerHa'];
+const PASTURE_COLS   = ['id','name','ha','openingCover','residual','wastage','gMay','gJun','gJul','gAug','gSep','directKgDM','costPerKgDM','notes','year'];
 
 function ensureSheet(ss, name, headers) {
   let sh = ss.getSheetByName(name);
@@ -107,6 +110,7 @@ function doPost(e) {
     if (Array.isArray(payload.soilTests))   rowsToSheet(ensureSheet(ss,'SoilTests',SOILTEST_COLS), SOILTEST_COLS, payload.soilTests);
     if (Array.isArray(payload.limeEvents))  rowsToSheet(ensureSheet(ss,'LimeEvents',LIMEEVENT_COLS), LIMEEVENT_COLS, payload.limeEvents);
     if (Array.isArray(payload.gmItems))     rowsToSheet(ensureSheet(ss,'GrossMargins',GMITEM_COLS), GMITEM_COLS, payload.gmItems);
+    if (Array.isArray(payload.pasture))     rowsToSheet(ensureSheet(ss,'Pasture',PASTURE_COLS), PASTURE_COLS, payload.pasture);
     if (typeof payload.aiNotes === 'string') appendAILog(ss, payload.aiNotes, newTs);
     setTs(ss, newTs);
     return respond(JSON.stringify({status:'ok', lastModified:newTs}), e);
@@ -134,6 +138,7 @@ function doGet(e) {
       if (Array.isArray(payload.soilTests))   rowsToSheet(ensureSheet(ss,'SoilTests',SOILTEST_COLS), SOILTEST_COLS, payload.soilTests);
       if (Array.isArray(payload.limeEvents))  rowsToSheet(ensureSheet(ss,'LimeEvents',LIMEEVENT_COLS), LIMEEVENT_COLS, payload.limeEvents);
       if (Array.isArray(payload.gmItems))     rowsToSheet(ensureSheet(ss,'GrossMargins',GMITEM_COLS), GMITEM_COLS, payload.gmItems);
+      if (Array.isArray(payload.pasture))     rowsToSheet(ensureSheet(ss,'Pasture',PASTURE_COLS), PASTURE_COLS, payload.pasture);
       if (typeof payload.aiNotes === 'string') appendAILog(ss, payload.aiNotes, newTs);
       setTs(ss, newTs);
       return respond(JSON.stringify({status:'ok', lastModified:newTs}), e);
@@ -149,6 +154,7 @@ function doGet(e) {
       soilTests:   sheetToRows(ensureSheet(ss,'SoilTests',SOILTEST_COLS), SOILTEST_COLS),
       limeEvents:  sheetToRows(ensureSheet(ss,'LimeEvents',LIMEEVENT_COLS), LIMEEVENT_COLS),
       gmItems:     sheetToRows(ensureSheet(ss,'GrossMargins',GMITEM_COLS), GMITEM_COLS),
+      pasture:     sheetToRows(ensureSheet(ss,'Pasture',PASTURE_COLS), PASTURE_COLS),
       aiNotes:     getAINotes(ss),
       lastModified: getTs(ss)
     };

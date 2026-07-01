@@ -199,6 +199,7 @@ td input.num { text-align: right; }
   <button onclick="showTab('paddocks')">Paddocks</button>
   <button onclick="showTab('stock')">Stock Req</button>
   <button onclick="showTab('feed')">Feed Budget</button>
+  <button onclick="showTab('pasture')">Pasture</button>
   <button onclick="showTab('financial')">Financial</button>
   <button onclick="showTab('gm')">Gross Margins</button>
   <button onclick="showTab('history')">All Seasons</button>
@@ -212,6 +213,7 @@ td input.num { text-align: right; }
   <div id="tab-paddocks" class="tab"></div>
   <div id="tab-stock" class="tab"></div>
   <div id="tab-feed" class="tab"></div>
+  <div id="tab-pasture" class="tab"></div>
   <div id="tab-financial" class="tab"></div>
   <div id="tab-gm" class="tab"></div>
   <div id="tab-history" class="tab"></div>
@@ -231,7 +233,7 @@ td input.num { text-align: right; }
 
 <script>
 // -- CONSTANTS --
-const APP_VER = '2.8';
+const APP_VER = '2.9';
 const NS = 'crop2_';
 const YEAR = '2026/27';
 const YEAR_PAT = /^\d{4}\/\d{2}$/;
@@ -433,6 +435,7 @@ const DEFAULT_GM_ITEMS = [
 let cropPlan    = [];
 let stockReq    = [];
 let supplements = [];
+let pasture     = [];   // {id, name, ha, openingCover, residual, wastage, gMay..gSep, directKgDM, costPerKgDM, notes, year}
 let paddocks    = [];   // {id, name, ha, soilType, notes}
 let soilTests   = [];   // {id, paddockId, date, pH, olsenP, qtK, ss, qtCa, notes}
 let limeEvents  = [];   // {id, paddockId, date, rateT, notes}
@@ -452,12 +455,14 @@ function getYears() {
   cropPlan.forEach(c => s.add(c.year || YEAR));
   stockReq.forEach(r => s.add(r.year || YEAR));
   supplements.forEach(x => s.add(x.year || YEAR));
+  pasture.forEach(p => s.add(p.year || YEAR));
   return [...s].sort().reverse();
 }
 
 function yearCrop()  { return cropPlan.filter(c    => (c.year    || YEAR) === activeYear); }
 function yearStock() { return stockReq.filter(r    => (r.year    || YEAR) === activeYear); }
 function yearSupps() { return supplements.filter(x => (x.year   || YEAR) === activeYear); }
+function yearPasture() { return pasture.filter(p   => (p.year   || YEAR) === activeYear); }
 
 function changeYear(y) {
   activeYear = y;
@@ -486,6 +491,7 @@ function save() {
   localStorage.setItem(NS+'crop', JSON.stringify(cropPlan));
   localStorage.setItem(NS+'stock', JSON.stringify(stockReq));
   localStorage.setItem(NS+'supps', JSON.stringify(supplements));
+  localStorage.setItem(NS+'pasture', JSON.stringify(pasture));
   localStorage.setItem(NS+'paddocks', JSON.stringify(paddocks));
   localStorage.setItem(NS+'soilTests', JSON.stringify(soilTests));
   localStorage.setItem(NS+'limeEvents', JSON.stringify(limeEvents));
@@ -499,6 +505,7 @@ function load() {
   cropPlan    = JSON.parse(localStorage.getItem(NS+'crop')        || '[]');
   stockReq    = JSON.parse(localStorage.getItem(NS+'stock')       || '[]');
   supplements = JSON.parse(localStorage.getItem(NS+'supps')       || '[]');
+  pasture     = JSON.parse(localStorage.getItem(NS+'pasture')     || '[]');
   paddocks    = JSON.parse(localStorage.getItem(NS+'paddocks')    || '[]');
   soilTests   = JSON.parse(localStorage.getItem(NS+'soilTests')   || '[]');
   limeEvents  = JSON.parse(localStorage.getItem(NS+'limeEvents')  || '[]');
@@ -523,10 +530,13 @@ function load() {
   cropPlan.forEach(c    => { if (!c.year) c.year = YEAR; });
   stockReq.forEach(r    => { if (!r.year) r.year = YEAR; });
   supplements.forEach(x => { if (!x.year) x.year = YEAR; });
+  pasture.forEach(p     => { if (!p.year) p.year = YEAR; });
   // Migrate rows that predate the wastage field — assign crop-type default
   cropPlan.forEach(c => { if (c.wastage === undefined || c.wastage === null || c.wastage === '') c.wastage = GM[c.crop]?.wastage ?? 15; });
   // Migrate rows that predate actualYieldKgHA
   cropPlan.forEach(c => { if (c.actualYieldKgHA === undefined) c.actualYieldKgHA = ''; });
+  // Migrate rows that predate winterUse
+  cropPlan.forEach(c => { if (!c.winterUse) c.winterUse = 'Winter feed'; });
   // Settings migration
   settings.closedYears = settings.closedYears || [];
   // Seed paddock register from known crop history if empty
@@ -549,11 +559,28 @@ function actualNetDM(c)     { return hasActual(c) ? n(c.ha) * n(c.actualYieldKgH
 function effectiveNetDM(c)  { const a = actualNetDM(c); return a !== null ? a : netDM(c); }
 function rowCost(c)         { return n(c.ha) * (n(c.seedHA) + n(c.chemHA) + n(c.fertHA) + n(c.opsHA)); }
 function totalDemand()      { return yearStock().reduce((s,r) => s + n(r.headCurr)*n(r.kgDMday)*n(r.days), 0); }
-function cropSupply()       { return yearCrop().reduce((s,c)  => s + effectiveNetDM(c), 0); }
-function budgetCropSupply() { return yearCrop().reduce((s,c)  => s + netDM(c), 0); }
+// winterUse: only 'Winter feed' rows count toward winter supply. 'To silage' DM is already
+// inside the supplement/silage inventory (double-count guard); 'Summer feed' is grazed
+// outside the winter window. Costs always count in Financial regardless of winterUse.
+const WINTER_USES = ['Winter feed','To silage','Summer feed'];
+function countsWinter(c)    { return !c.winterUse || c.winterUse === 'Winter feed'; }
+function winterCrops()      { return yearCrop().filter(countsWinter); }
+function cropSupply()       { return winterCrops().reduce((s,c) => s + effectiveNetDM(c), 0); }
+function budgetCropSupply() { return winterCrops().reduce((s,c) => s + netDM(c), 0); }
+function allCropEffDM()     { return yearCrop().reduce((s,c)  => s + effectiveNetDM(c), 0); }
 function anyActuals()       { return yearCrop().some(c => hasActual(c)); }
 function suppSupply()    { return yearSupps().reduce((s,x) => s + n(x.kgDM), 0); }
-function totalSupply()   { return cropSupply() + suppSupply(); }
+// Pasture: total = ha × (opening − residual + Σ growth×days) less wastage, or directKgDM as entered
+const PASTURE_DAYS = { gMay:15, gJun:30, gJul:31, gAug:31, gSep:15 }; // 15 May – 15 Sep, 122 days
+function pastureGrowthHa(p) { return Object.keys(PASTURE_DAYS).reduce((s,k) => s + n(p[k])*PASTURE_DAYS[k], 0); }
+function pastureRowDM(p) {
+  if (n(p.directKgDM) > 0) return n(p.directKgDM);
+  const cover = Math.max(0, n(p.openingCover) - n(p.residual));
+  return n(p.ha) * (cover + pastureGrowthHa(p)) * (1 - n(p.wastage)/100);
+}
+function pastureSupply() { return yearPasture().reduce((s,p) => s + pastureRowDM(p), 0); }
+function pastureCost()   { return yearPasture().reduce((s,p) => s + pastureRowDM(p)*n(p.costPerKgDM), 0); }
+function totalSupply()   { return cropSupply() + suppSupply() + pastureSupply(); }
 function surplus()       { return totalSupply() - totalDemand(); }
 function totalCropCost() { return yearCrop().reduce((s,c)  => s + rowCost(c), 0); }
 function totalSuppCost() { return yearSupps().reduce((s,x) => s + n(x.kgDM)*n(x.costPerKgDM), 0); }
@@ -589,7 +616,7 @@ function showTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
-  const idx = ['dashboard','crop','paddocks','stock','feed','financial','gm','history','ai','settings'].indexOf(name);
+  const idx = ['dashboard','crop','paddocks','stock','feed','pasture','financial','gm','history','ai','settings'].indexOf(name);
   document.querySelectorAll('nav button')[idx].classList.add('active');
   renderTab(name);
 }
@@ -600,6 +627,7 @@ function renderTab(name) {
   if (name === 'paddocks')   renderPaddocks();
   if (name === 'stock')      renderStock();
   if (name === 'feed')       renderFeed();
+  if (name === 'pasture')    renderPasture();
   if (name === 'financial')  renderFinancial();
   if (name === 'gm')         renderGM();
   if (name === 'history')    renderHistory();
@@ -631,7 +659,7 @@ function renderDashboard() {
       <div class="card">
         <div class="label">DM Supply</div>
         <div class="value">${fmtT(sup)}</div>
-        <div class="sub">Crops + supplements</div>
+        <div class="sub">Crops ${fmtT(cropSupply())} · supps ${fmtT(suppSupply())} · pasture ${fmtT(pastureSupply())}</div>
       </div>
       <div class="card">
         <div class="label">DM Demand</div>
@@ -678,9 +706,10 @@ function renderDashboard() {
 function renderCropSummaryRows() {
   const byType = {};
   yearCrop().forEach(c => {
-    if (!byType[c.crop]) byType[c.crop] = { ha: 0, dm: 0, cost: 0 };
+    if (!byType[c.crop]) byType[c.crop] = { ha: 0, dm: 0, excl: 0, cost: 0 };
     byType[c.crop].ha   += n(c.ha);
-    byType[c.crop].dm   += netDM(c);
+    if (countsWinter(c)) byType[c.crop].dm += effectiveNetDM(c);
+    else                 byType[c.crop].excl += effectiveNetDM(c);
     byType[c.crop].cost += rowCost(c);
   });
   if (!Object.keys(byType).length) return '<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:16px;">No crops entered yet</td></tr>';
@@ -688,7 +717,7 @@ function renderCropSummaryRows() {
     <tr>
       <td><span class="tag ${CROP_TAG[crop] || 'tag-other'}">${crop}</span></td>
       <td style="text-align:right">${v.ha.toFixed(1)}</td>
-      <td style="text-align:right">${fmtT(v.dm)}</td>
+      <td style="text-align:right">${v.dm > 0 ? fmtT(v.dm) : '—'}${v.excl > 0 ? ` <span style="font-size:10px;color:var(--muted)">+${fmtT(v.excl)} excl.</span>` : ''}</td>
       <td style="text-align:right">${fmt$(v.cost)}</td>
     </tr>`).join('');
 }
@@ -707,6 +736,7 @@ function buildFlags() {
   });
   if (sr.length === 0) flags.push({ level:'amber', title:'No stock entered', desc:'Add stock classes in Stock Req to calculate feed demand.' });
   if (cp.length === 0) flags.push({ level:'amber', title:'No crop plan entered', desc:'Add paddocks in Crop Plan to calculate feed supply.' });
+  if (activeYear >= '2026/27' && cp.length > 0 && yearPasture().length === 0) flags.push({ level:'amber', title:'No pasture supply entered', desc:'Winter pasture (saved + grown) is missing from supply — add blocks in the Pasture tab.' });
   return flags;
 }
 
@@ -729,7 +759,7 @@ function renderCrop() {
     const hasAny   = rows_.some(c => hasActual(c));
     const actCell  = hasAny ? fmtT(totActDM) : '—';
     rows += `<tr class="section-row"><td colspan="2"><span class="tag ${CROP_TAG[crop]||'tag-other'}">${crop}</span></td>
-      <td style="text-align:right">${totHa.toFixed(1)} ha</td><td></td>
+      <td style="text-align:right">${totHa.toFixed(1)} ha</td><td></td><td></td>
       <td style="text-align:right">${n(gmDefaults(crop).yieldKgHA).toLocaleString()}</td>
       <td style="text-align:right">${actCell}</td><td></td>
       <td style="text-align:right" colspan="5">${fmtT(totBudDM)} budgeted</td>
@@ -737,7 +767,7 @@ function renderCrop() {
     rows_.forEach(c => { rows += cropRow(c); });
   });
 
-  if (!rows) rows = `<tr><td colspan="14" style="text-align:center;padding:20px;color:var(--muted);">No paddocks yet — click Add Paddock below</td></tr>`;
+  if (!rows) rows = `<tr><td colspan="15" style="text-align:center;padding:20px;color:var(--muted);">No paddocks yet — click Add Paddock below</td></tr>`;
 
   const closed = isSeasonClosed();
   document.getElementById('tab-crop').innerHTML = `
@@ -750,7 +780,7 @@ function renderCrop() {
       <table>
         <thead><tr>
           <th>Paddock</th><th>Crop</th><th style="text-align:right">Ha</th>
-          <th>Drill Date</th><th style="text-align:right">Budget kgDM/ha</th>
+          <th>Drill Date</th><th>Winter Use</th><th style="text-align:right">Budget kgDM/ha</th>
           <th style="text-align:right">Actual kgDM/ha</th><th style="text-align:right">Δ%</th>
           <th style="text-align:right">Wastage %</th>
           <th style="text-align:right">Seed $/ha</th><th style="text-align:right">Chem $/ha</th>
@@ -760,7 +790,10 @@ function renderCrop() {
         <tbody id="crop-tbody">${rows}</tbody>
       </table>
       ${!closed ? `<div class="add-row"><button onclick="addCropRow()">+ Add paddock</button></div>` : ''}
-    </div>`;
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:8px">
+      <strong>Winter Use:</strong> Winter feed = counts in winter DM supply. To silage = excluded from supply — that DM is already in the silage/supplement inventory (no double count). Summer feed = grazed outside winter — excluded from supply. Costs count in Financial either way.
+    </p>`;
 }
 
 function cropRow(c) {
@@ -779,6 +812,7 @@ function cropRow(c) {
     <td><select onchange="cropTypeChanged('${c.id}',this.value)"${dis}>${opts}</select></td>
     <td><input class="num" type="number" value="${c.ha||''}" onchange="updateCropCalc('${c.id}','ha',this.value)" style="width:60px"${dis}></td>
     <td><input value="${c.drillDate||''}" onchange="updateCrop('${c.id}','drillDate',this.value)" placeholder="dd/mm/yy" style="width:80px"${dis}></td>
+    <td><select onchange="updateCrop('${c.id}','winterUse',this.value);renderCrop()" style="width:105px;${countsWinter(c)?'':'color:var(--warn);font-weight:600'}"${dis}>${WINTER_USES.map(u => `<option${(c.winterUse||'Winter feed')===u?' selected':''}>${u}</option>`).join('')}</select></td>
     <td><input class="num" type="number" value="${c.yieldKgHA||''}" onchange="updateCropCalc('${c.id}','yieldKgHA',this.value)" style="width:80px"${dis}></td>
     <td><input class="num" type="number" value="${act !== null ? act : ''}" onchange="updateActualYield('${c.id}',this.value)" placeholder="actual" style="width:80px;border-color:${act!==null?'var(--lime)':'var(--border)'}"${dis}></td>
     <td style="text-align:center" id="cr-delta-${c.id}">${deltaHtml}</td>
@@ -824,7 +858,7 @@ function updateActualYield(id, val) {
 function addCropRow() {
   const crop = 'Kale';
   const gm = gmDefaults(crop);
-  const c = { id: uid(), year: activeYear, paddock:'', crop, ha:'', drillDate:'', yieldKgHA: gm.yieldKgHA, wastage: gm.wastage, actualYieldKgHA: '', seedHA: gm.seedHA, chemHA: gm.chemHA, fertHA: gm.fertHA, opsHA: gm.opsHA, notes:'' };
+  const c = { id: uid(), year: activeYear, paddock:'', crop, ha:'', drillDate:'', winterUse:'Winter feed', yieldKgHA: gm.yieldKgHA, wastage: gm.wastage, actualYieldKgHA: '', seedHA: gm.seedHA, chemHA: gm.chemHA, fertHA: gm.fertHA, opsHA: gm.opsHA, notes:'' };
   cropPlan.push(c);
   save();
   renderCrop();
@@ -955,7 +989,7 @@ function renderFeed() {
   const dem  = totalDemand();
   const cSup = cropSupply();
   const sSup = suppSupply();
-  const sup  = cSup + sSup;
+  const sup  = cSup + sSup + pastureSupply();
   const sur  = sup - dem;
   const pct  = dem > 0 ? Math.min(110, Math.round(sup/dem*100)) : 0;
 
@@ -980,6 +1014,7 @@ function renderFeed() {
     const budNet  = netDM(c);
     const actN    = actualNetDM(c);
     const effNet  = actN !== null ? actN : budNet;
+    const excl    = !countsWinter(c);
     const actYld  = hasActual(c) ? n(c.actualYieldKgHA).toLocaleString() : '—';
     const actCell = showActuals ? `<td style="text-align:right;color:var(--info)">${actYld}</td>` : '';
     const deltaCell = showActuals ? (() => {
@@ -987,17 +1022,24 @@ function renderFeed() {
       const pct = Math.round((n(c.actualYieldKgHA) - n(c.yieldKgHA)) / (n(c.yieldKgHA)||1) * 100);
       return `<td style="text-align:right;color:${pct>=0?'var(--ok)':'var(--danger)'};font-weight:700">${pct>=0?'+':''}${pct}%</td>`;
     })() : '';
-    return `<tr>
-      <td><span class="tag ${CROP_TAG[c.crop]||'tag-other'}">${c.crop}</span></td>
+    return `<tr${excl ? ' style="color:var(--muted)"' : ''}>
+      <td><span class="tag ${CROP_TAG[c.crop]||'tag-other'}">${c.crop}</span>${excl ? ` <span style="font-size:10px;color:var(--warn);font-weight:700;white-space:nowrap">${c.winterUse === 'To silage' ? '→ silage' : 'summer'}</span>` : ''}</td>
       <td>${c.paddock||'-'}</td>
       <td style="text-align:right">${n(c.ha).toFixed(1)}</td>
       <td style="text-align:right">${n(c.yieldKgHA).toLocaleString()}</td>
       ${actCell}${deltaCell}
       <td style="text-align:right;color:var(--muted)">${fmtDM(gross)}</td>
       <td style="text-align:right">${n(c.wastage)}%</td>
-      <td style="text-align:right;font-weight:600${actN!==null?';color:var(--info)':''}">${fmtDM(effNet)}</td>
+      <td style="text-align:right;font-weight:600${excl ? ';text-decoration:line-through;color:var(--muted)' : actN!==null ? ';color:var(--info)' : ''}">${fmtDM(effNet)}</td>
     </tr>`;
   }).join('') : `<tr><td colspan="${showActuals?9:7}" style="color:var(--muted);padding:12px">No crops in plan</td></tr>`;
+
+  const pSup = pastureSupply();
+  const pastureRows = yearPasture().map(p => `<tr>
+    <td>${p.name||'-'}</td>
+    <td style="text-align:right">${n(p.ha) ? n(p.ha).toFixed(0) : '—'}</td>
+    <td style="text-align:right;font-weight:600">${fmtDM(pastureRowDM(p))}</td>
+  </tr>`).join('');
 
   document.getElementById('tab-feed').innerHTML = `
     <div class="fb-summary">
@@ -1008,6 +1050,7 @@ function renderFeed() {
       <div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:2px">SUPPLY</div>
         <div style="font-size:22px;font-weight:700">${fmtT(sup)}</div>
+        <div style="font-size:10px;color:var(--muted)">crops ${fmtT(cSup)} · supps ${fmtT(sSup)} · pasture ${fmtT(pSup)}</div>
       </div>
       <div class="fb-bar-wrap">
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Supply covers ${pct}% of demand</div>
@@ -1023,7 +1066,7 @@ function renderFeed() {
 
     <div class="fb-section">
       <div>
-        <div class="section-title" style="font-size:14px;">Supply from Crops <span style="font-size:12px;font-weight:400;color:var(--muted)">(crop-specific wastage applied${showActuals?' — <span style="color:var(--info)">blue = actual</span>':''})</span></div>
+        <div class="section-title" style="font-size:14px;">Supply from Crops <span style="font-size:12px;font-weight:400;color:var(--muted)">(wastage applied${showActuals?' — <span style="color:var(--info)">blue = actual</span>':''} — struck-out rows excluded: silage/summer)</span></div>
         <div class="tbl-wrap">
           <table>
             <thead><tr>
@@ -1034,7 +1077,7 @@ function renderFeed() {
             <tbody>
               ${cropFeedRows}
               <tr class="total-row">
-                <td colspan="${showActuals?8:6}">Total net DM from crops${showActuals && cSup!==budTotalDM ? ` (budget: ${fmtT(budTotalDM)})` : ''}</td>
+                <td colspan="${showActuals?8:6}">Total net DM from crops — winter${showActuals && cSup!==budTotalDM ? ` (budget: ${fmtT(budTotalDM)})` : ''}</td>
                 <td style="text-align:right">${fmtDM(cSup)}</td>
               </tr>
             </tbody>
@@ -1052,6 +1095,17 @@ function renderFeed() {
             </tbody>
           </table>
           <div class="add-row"><button onclick="addSupp()">+ Add supplement / silage stack</button></div>
+        </div>
+        <div class="section-title" style="font-size:14px;margin-top:16px">Supply from Pasture <span style="font-size:12px;font-weight:400;color:var(--muted)">(edit in Pasture tab)</span></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Block</th><th style="text-align:right">Ha</th><th style="text-align:right">kgDM</th></tr></thead>
+            <tbody>
+              ${pastureRows || '<tr><td colspan="3" style="color:var(--muted);padding:12px">No pasture blocks — add in the Pasture tab</td></tr>'}
+              <tr class="total-row"><td colspan="2">Total pasture</td><td style="text-align:right">${fmtDM(pSup)}</td></tr>
+            </tbody>
+          </table>
+          <div class="add-row"><button onclick="showTab('pasture')">Open Pasture tab →</button></div>
         </div>
       </div>
     </div>
@@ -1101,23 +1155,124 @@ function deleteSupp(id) {
   renderFeed();
 }
 
+// -- PASTURE (winter pasture supply) --
+function renderPasture() {
+  const yp    = yearPasture();
+  const tot   = pastureSupply();
+  const totHa = yp.reduce((s,p) => s + n(p.ha), 0);
+  const sup   = totalSupply();
+  const share = sup > 0 ? Math.round(tot/sup*100) : 0;
+  const rows  = yp.map(p => pastureRowHtml(p)).join('');
+
+  document.getElementById('tab-pasture').innerHTML = `
+    <div class="cards">
+      <div class="card"><div class="label">Pasture DM — Winter</div><div class="value">${fmtT(tot)}</div><div class="sub">15 May – 15 Sep</div></div>
+      <div class="card"><div class="label">Area</div><div class="value">${totHa.toFixed(0)}</div><div class="sub">ha in winter pasture</div></div>
+      <div class="card"><div class="label">Share of Supply</div><div class="value">${share}%</div><div class="sub">of total winter supply</div></div>
+      <div class="card"><div class="label">Pasture Cost</div><div class="value">${fmt$(pastureCost())}</div><div class="sub">where $/kgDM set</div></div>
+    </div>
+    <div class="toolbar">
+      <div class="section-title" style="flex:1;border:none;margin:0">Winter Pasture Supply — ${activeYear}</div>
+      ${yp.length ? '' : `<button class="btn btn-ghost btn-sm" onclick="seedPastureBaseline()">Seed winter baseline</button>`}
+      <button class="btn btn-primary" onclick="addPastureRow()">+ Add Block</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Block</th><th style="text-align:right">Ha</th>
+          <th style="text-align:right">Opening kgDM/ha</th><th style="text-align:right">Residual kgDM/ha</th>
+          <th style="text-align:right">Wastage %</th>
+          <th style="text-align:right" title="kgDM/ha/day × 15 days">May</th>
+          <th style="text-align:right" title="kgDM/ha/day × 30 days">Jun</th>
+          <th style="text-align:right" title="kgDM/ha/day × 31 days">Jul</th>
+          <th style="text-align:right" title="kgDM/ha/day × 31 days">Aug</th>
+          <th style="text-align:right" title="kgDM/ha/day × 15 days">Sep</th>
+          <th style="text-align:right">Direct kgDM</th><th style="text-align:right">$/kgDM</th>
+          <th style="text-align:right">Total kgDM</th><th></th>
+        </tr></thead>
+        <tbody>
+          ${rows || '<tr><td colspan="14" style="color:var(--muted);padding:16px;text-align:center">No pasture blocks — add one or seed the winter baseline</td></tr>'}
+          <tr class="total-row"><td colspan="12">Total winter pasture</td><td style="text-align:right">${fmtDM(tot)}</td><td></td></tr>
+        </tbody>
+      </table>
+      <div class="add-row"><button onclick="addPastureRow()">+ Add pasture block</button></div>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:8px">
+      Total = ha × (opening − residual + growth) less wastage. Growth = kgDM/ha/day rates × 15/30/31/31/15 days (15 May – 15 Sep).
+      Set <strong>Direct kgDM</strong> to override the calculation with a known budget figure (e.g. saved Italians) — used as entered.
+    </p>`;
+}
+
+function pastureRowHtml(p) {
+  const ni = (f,w,step) => `<td><input class="num" type="number"${step ? ` step="${step}"` : ''} value="${p[f] !== undefined && p[f] !== null ? p[f] : ''}" onchange="updatePasture('${p.id}','${f}',this.value)" style="width:${w}px"></td>`;
+  return `<tr class="data-row" id="pa-${p.id}">
+    <td><input value="${p.name||''}" onchange="updatePasture('${p.id}','name',this.value)" placeholder="Block name" style="min-width:150px" title="${p.notes||''}"></td>
+    ${ni('ha',60)}${ni('openingCover',75)}${ni('residual',75)}${ni('wastage',55)}
+    ${ni('gMay',48)}${ni('gJun',48)}${ni('gJul',48)}${ni('gAug',48)}${ni('gSep',48)}
+    ${ni('directKgDM',85)}${ni('costPerKgDM',65,'0.001')}
+    <td style="text-align:right;font-weight:600" id="pa-tot-${p.id}">${fmtDM(pastureRowDM(p))}</td>
+    <td><button class="del-btn" onclick="deletePasture('${p.id}')">✕</button></td>
+  </tr>`;
+}
+
+function addPastureRow() {
+  const p = { id: uid(), year: activeYear, name:'', ha:'', openingCover:'', residual:'', wastage:0, gMay:'', gJun:'', gJul:'', gAug:'', gSep:'', directKgDM:'', costPerKgDM:'', notes:'' };
+  pasture.push(p);
+  save();
+  renderPasture();
+  const row = document.getElementById('pa-' + p.id);
+  if (row) row.querySelector('input').focus();
+}
+
+function updatePasture(id, field, val) {
+  const p = pasture.find(x => x.id === id);
+  if (!p) return;
+  p[field] = val;
+  save();
+  const el = document.getElementById('pa-tot-' + id);
+  if (el) el.textContent = fmtDM(pastureRowDM(p));
+}
+
+function deletePasture(id) {
+  const p = pasture.find(x => x.id === id);
+  if (!p || !confirm('Delete pasture block "' + (p.name || 'unnamed') + '"?')) return;
+  pasture = pasture.filter(x => x.id !== id);
+  save();
+  renderPasture();
+}
+
+// 2026 winter budget baseline (feed-budget-baseline.md / Cropping plan 27).
+// Flats area 471 ha = flats net of crop and saved blocks — 471 × (100 cover + 1,095 growth)
+// reproduces the winter budget's "other pasture" 562,845 kgDM exactly. Edit to actuals.
+function seedPastureBaseline() {
+  if (yearPasture().length) return;
+  pasture.push(
+    { id: uid(), year: activeYear, name:'Saved Italian pasture', ha:80, openingCover:'', residual:'', wastage:0, gMay:'', gJun:'', gJul:'', gAug:'', gSep:'', directKgDM:700000, costPerKgDM:0.08, notes:'Cropping plan 27 budget figure — 80 ha, first 45 days' },
+    { id: uid(), year: activeYear, name:'Winter grazed flats', ha:471, openingCover:1700, residual:1600, wastage:0, gMay:12, gJun:5, gJul:5, gAug:10, gSep:20, directKgDM:'', costPerKgDM:'', notes:'Flats net of crop/saved area. Canterbury benchmark growth rates' },
+    { id: uid(), year: activeYear, name:'Commercial hinds block', ha:'', openingCover:'', residual:'', wastage:0, gMay:'', gJun:'', gJul:'', gAug:'', gSep:'', directKgDM:100000, costPerKgDM:'', notes:'Winter budget baseline figure' }
+  );
+  save();
+  renderPasture();
+  logSync('Pasture baseline seeded — ' + activeYear);
+}
+
 // -- FINANCIAL --
 function renderFinancial() {
   const byType = {};
   yearCrop().forEach(c => {
-    if (!byType[c.crop]) byType[c.crop] = { ha:0, seed:0, chem:0, fert:0, ops:0, netDM:0 };
+    if (!byType[c.crop]) byType[c.crop] = { ha:0, seed:0, chem:0, fert:0, ops:0, effDM:0 };
     const h = n(c.ha);
     byType[c.crop].ha    += h;
     byType[c.crop].seed  += h * n(c.seedHA);
     byType[c.crop].chem  += h * n(c.chemHA);
     byType[c.crop].fert  += h * n(c.fertHA);
     byType[c.crop].ops   += h * n(c.opsHA);
-    byType[c.crop].netDM += netDM(c);
+    byType[c.crop].effDM += effectiveNetDM(c);
   });
 
   const cropRows = Object.entries(byType).map(([crop, v]) => {
     const total = v.seed + v.chem + v.fert + v.ops;
-    const costPerNetDM = v.netDM > 0 ? total / v.netDM : 0;
+    const costPerNetDM = v.effDM > 0 ? total / v.effDM : 0;
     return `<tr>
       <td><span class="tag ${CROP_TAG[crop]||'tag-other'}">${crop}</span></td>
       <td style="text-align:right">${v.ha.toFixed(1)}</td>
@@ -1136,19 +1291,26 @@ function renderFinancial() {
     return `<tr><td>${x.name||'-'}</td><td>${x.type||'-'}</td><td style="text-align:right">${fmtDM(x.kgDM)}</td><td style="text-align:right">${n(x.costPerKgDM).toFixed(3)}</td><td style="text-align:right;font-weight:700">${fmt$(cost)}</td></tr>`;
   }).join('') || '<tr><td colspan="5" style="color:var(--muted);padding:12px">No supplements entered</td></tr>';
 
-  const grandTotal = totalCropCost() + totalSuppCost();
+  const pastRows = yearPasture().map(p => {
+    const dm = pastureRowDM(p);
+    return `<tr><td>${p.name||'-'}</td><td style="text-align:right">${fmtDM(dm)}</td><td style="text-align:right">${n(p.costPerKgDM) ? n(p.costPerKgDM).toFixed(3) : '—'}</td><td style="text-align:right;font-weight:700">${fmt$(dm*n(p.costPerKgDM))}</td></tr>`;
+  }).join('') || '<tr><td colspan="4" style="color:var(--muted);padding:12px">No pasture blocks entered</td></tr>';
+
+  const grandTotal = totalCropCost() + totalSuppCost() + pastureCost();
+  const effTotal   = allCropEffDM();
 
   document.getElementById('tab-financial').innerHTML = `
-    <div class="cards" style="max-width:700px">
+    <div class="cards" style="max-width:900px">
       <div class="card"><div class="label">Crop Establishment</div><div class="value">${fmt$(totalCropCost())}</div></div>
       <div class="card"><div class="label">Supplements</div><div class="value">${fmt$(totalSuppCost())}</div></div>
+      <div class="card"><div class="label">Pasture</div><div class="value">${fmt$(pastureCost())}</div></div>
       <div class="card"><div class="label">Total Programme</div><div class="value">${fmt$(grandTotal)}</div></div>
     </div>
 
     <div class="section-title">Crop Establishment Costs — ${activeYear}</div>
     <div class="tbl-wrap" style="margin-bottom:24px">
       <table>
-        <thead><tr><th>Crop</th><th style="text-align:right">Ha</th><th style="text-align:right">Seed</th><th style="text-align:right">Chem</th><th style="text-align:right">Fert</th><th style="text-align:right">Ops</th><th style="text-align:right">Total</th><th style="text-align:right">$/ha</th><th style="text-align:right">$/kgDM consumed</th></tr></thead>
+        <thead><tr><th>Crop</th><th style="text-align:right">Ha</th><th style="text-align:right">Seed</th><th style="text-align:right">Chem</th><th style="text-align:right">Fert</th><th style="text-align:right">Ops</th><th style="text-align:right">Total</th><th style="text-align:right">$/ha</th><th style="text-align:right">$/kgDM consumed${anyActuals() ? ' <span style="font-size:10px;font-weight:400">(actuals used where recorded)</span>' : ''}</th></tr></thead>
         <tbody>
           ${cropRows}
           <tr class="total-row">
@@ -1157,19 +1319,30 @@ function renderFinancial() {
             <td colspan="4"></td>
             <td style="text-align:right">${fmt$(totalCropCost())}</td>
             <td style="text-align:right">${fmt$(totalCropCost()/(totalHa()||1))}/ha</td>
-            <td style="text-align:right">$${cropSupply() > 0 ? (totalCropCost()/cropSupply()).toFixed(3) : '—'}/kgDM</td>
+            <td style="text-align:right">$${effTotal > 0 ? (totalCropCost()/effTotal).toFixed(3) : '—'}/kgDM</td>
           </tr>
         </tbody>
       </table>
     </div>
 
     <div class="section-title">Supplement / Feed Costs</div>
-    <div class="tbl-wrap">
+    <div class="tbl-wrap" style="margin-bottom:24px">
       <table>
         <thead><tr><th>Name</th><th>Type</th><th style="text-align:right">kgDM</th><th style="text-align:right">$/kgDM</th><th style="text-align:right">Total Cost</th></tr></thead>
         <tbody>
           ${suppRows}
           <tr class="total-row"><td colspan="4">Total supplements</td><td style="text-align:right">${fmt$(totalSuppCost())}</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section-title">Pasture Costs</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Block</th><th style="text-align:right">kgDM</th><th style="text-align:right">$/kgDM</th><th style="text-align:right">Total Cost</th></tr></thead>
+        <tbody>
+          ${pastRows}
+          <tr class="total-row"><td colspan="3">Total pasture</td><td style="text-align:right">${fmt$(pastureCost())}</td></tr>
         </tbody>
       </table>
     </div>`;
@@ -1183,10 +1356,12 @@ function renderHistory() {
     const cp   = cropPlan.filter(c    => (c.year  || YEAR) === y);
     const sr   = stockReq.filter(r   => (r.year   || YEAR) === y);
     const su   = supplements.filter(x => (x.year  || YEAR) === y);
+    const pa   = pasture.filter(p    => (p.year   || YEAR) === y);
+    const wc   = cp.filter(countsWinter);
     const ha        = cp.reduce((s,c) => s+n(c.ha), 0);
-    const budCropDM = cp.reduce((s,c) => s+netDM(c), 0);
-    const actCropDM = cp.some(c => hasActual(c)) ? cp.reduce((s,c) => s+effectiveNetDM(c), 0) : null;
-    const sSup      = su.reduce((s,x) => s+n(x.kgDM), 0);
+    const budCropDM = wc.reduce((s,c) => s+netDM(c), 0);
+    const actCropDM = wc.some(c => hasActual(c)) ? wc.reduce((s,c) => s+effectiveNetDM(c), 0) : null;
+    const sSup      = su.reduce((s,x) => s+n(x.kgDM), 0) + pa.reduce((s,p) => s+pastureRowDM(p), 0);
     const budSupply = budCropDM + sSup;
     const actSupply = actCropDM !== null ? actCropDM + sSup : null;
     const supply    = actSupply !== null ? actSupply : budSupply;
@@ -2044,6 +2219,7 @@ async function pullFromSheet() {
         if (!c.year) c.year = YEAR;
         if (c.actualYieldKgHA === undefined) c.actualYieldKgHA = '';
         if (c.wastage === undefined || c.wastage === null || c.wastage === '') c.wastage = GM[c.crop]?.wastage ?? 15;
+        if (!c.winterUse) c.winterUse = 'Winter feed';
       });
       cropPlan = data.cropPlan;
     }
@@ -2054,6 +2230,10 @@ async function pullFromSheet() {
     if (Array.isArray(data.supplements) && data.supplements.length) {
       data.supplements.forEach(x => { if (!x.year) x.year = YEAR; });
       supplements = data.supplements;
+    }
+    if (Array.isArray(data.pasture) && data.pasture.length) {
+      data.pasture.forEach(p => { if (!p.year) p.year = YEAR; });
+      pasture = data.pasture;
     }
     if (Array.isArray(data.paddocks)   && data.paddocks.length)   paddocks   = data.paddocks;
     if (Array.isArray(data.soilTests)  && data.soilTests.length)  soilTests  = data.soilTests;
@@ -2075,7 +2255,7 @@ async function pullFromSheet() {
 async function pushToSheet() {
   if (!settings.scriptUrl || settings.disconnected) { syncPending = false; return; }
   try {
-    const payload = { cropPlan, stockReq, supplements, paddocks, soilTests, limeEvents, gmItems, aiNotes, clientTs: lastTs };
+    const payload = { cropPlan, stockReq, supplements, pasture, paddocks, soilTests, limeEvents, gmItems, aiNotes, clientTs: lastTs };
     const res = await fetch(settings.scriptUrl, { method: 'POST', body: JSON.stringify(payload) });
     const d = await res.json();
     if (d.error) throw new Error(d.error);
