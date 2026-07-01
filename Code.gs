@@ -46,9 +46,7 @@ function sheetToRows(sh, cols) {
 // has shrunk to exactly the data size, which silently killed all pushes.
 // Header row is rewritten on every push so headers always match the written layout.
 function rowsToSheet(sh, cols, rows) {
-  const last = sh.getLastRow();
-  const width = Math.max(sh.getLastColumn(), cols.length);
-  if (last >= 1) sh.getRange(1,1,last,width).clearContents();
+  sh.clearContents();
   sh.getRange(1,1,1,cols.length).setValues([cols]);
   sh.getRange(1,1,1,cols.length).setFontWeight('bold').setBackground('#1B3A1B').setFontColor('#ffffff');
   if (!rows.length) return;
