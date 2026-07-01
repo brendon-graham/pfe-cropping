@@ -1,9 +1,10 @@
-// PFE Cropping App v2.3 — Apps Script Backend
+// PFE Cropping App v2.4 — Apps Script Backend
 // Sheet ID: 1nSzOt6nBKqnYYmz8Dw4r7UsY05l699jMmamhQMYIoNk
 // v2.2: 'wastage' added after yieldKgHA — old rows without it get crop-type default on load.
 // v2.3: Paddock Register — three new sheets: Paddocks, SoilTests, LimeEvents.
+// v2.4: 'actualYieldKgHA' added after wastage — old rows without it default to '' on load.
 
-const CROP_COLS      = ['id','paddock','crop','ha','drillDate','yieldKgHA','wastage','seedHA','chemHA','fertHA','opsHA','notes','year'];
+const CROP_COLS      = ['id','paddock','crop','ha','drillDate','yieldKgHA','wastage','actualYieldKgHA','seedHA','chemHA','fertHA','opsHA','notes','year'];
 const STOCK_COLS     = ['id','species','cls','headPrev','headCurr','kgDMday','period','days','feedSource','notes','year'];
 const SUPP_COLS      = ['id','name','type','kgDM','costPerKgDM','notes','year'];
 const PADDOCK_COLS   = ['id','name','ha','soilType','notes'];

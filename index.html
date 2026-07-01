@@ -229,7 +229,7 @@ td input.num { text-align: right; }
 
 <script>
 // -- CONSTANTS --
-const APP_VER = '2.3';
+const APP_VER = '2.4';
 const NS = 'crop2_';
 const YEAR = '2026/27';
 const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbxaPkRHrWqjfqgMCaV-s-uZYSvVIFgOyC5IpKg5J6_CLv_5gEkP7_SukyHOYhTvEYI2jQ/exec';
@@ -336,6 +336,10 @@ function load() {
   supplements.forEach(x => { if (!x.year) x.year = YEAR; });
   // Migrate rows that predate the wastage field — assign crop-type default
   cropPlan.forEach(c => { if (c.wastage === undefined || c.wastage === null || c.wastage === '') c.wastage = GM[c.crop]?.wastage ?? 15; });
+  // Migrate rows that predate actualYieldKgHA
+  cropPlan.forEach(c => { if (c.actualYieldKgHA === undefined) c.actualYieldKgHA = ''; });
+  // Settings migration
+  settings.closedYears = settings.closedYears || [];
   // Seed paddock register from known crop history if empty
   if (!paddocks.length) seedLocalPaddocks();
   lastTs = Number(localStorage.getItem(NS+'lastTs') || 0);
@@ -348,12 +352,17 @@ function fmtT(v) { return Math.round(n(v)/1000).toLocaleString() + 't'; }
 function fmtDM(v) { return Math.round(n(v)).toLocaleString() + ' kg'; }
 
 // -- COMPUTED TOTALS (operate on active year only) --
-function wasteFactor(c)  { return 1 - n(c.wastage) / 100; }
-function grossDM(c)      { return n(c.ha) * n(c.yieldKgHA); }
-function netDM(c)        { return grossDM(c) * wasteFactor(c); }
-function rowCost(c)      { return n(c.ha) * (n(c.seedHA) + n(c.chemHA) + n(c.fertHA) + n(c.opsHA)); }
-function totalDemand()   { return yearStock().reduce((s,r) => s + n(r.headCurr)*n(r.kgDMday)*n(r.days), 0); }
-function cropSupply()    { return yearCrop().reduce((s,c)  => s + netDM(c), 0); }
+function wasteFactor(c)     { return 1 - n(c.wastage) / 100; }
+function grossDM(c)         { return n(c.ha) * n(c.yieldKgHA); }
+function netDM(c)           { return grossDM(c) * wasteFactor(c); }
+function hasActual(c)       { return c.actualYieldKgHA !== '' && c.actualYieldKgHA !== null && c.actualYieldKgHA !== undefined; }
+function actualNetDM(c)     { return hasActual(c) ? n(c.ha) * n(c.actualYieldKgHA) * wasteFactor(c) : null; }
+function effectiveNetDM(c)  { const a = actualNetDM(c); return a !== null ? a : netDM(c); }
+function rowCost(c)         { return n(c.ha) * (n(c.seedHA) + n(c.chemHA) + n(c.fertHA) + n(c.opsHA)); }
+function totalDemand()      { return yearStock().reduce((s,r) => s + n(r.headCurr)*n(r.kgDMday)*n(r.days), 0); }
+function cropSupply()       { return yearCrop().reduce((s,c)  => s + effectiveNetDM(c), 0); }
+function budgetCropSupply() { return yearCrop().reduce((s,c)  => s + netDM(c), 0); }
+function anyActuals()       { return yearCrop().some(c => hasActual(c)); }
 function suppSupply()    { return yearSupps().reduce((s,x) => s + n(x.kgDM), 0); }
 function totalSupply()   { return cropSupply() + suppSupply(); }
 function surplus()       { return totalSupply() - totalDemand(); }
@@ -499,29 +508,36 @@ function renderCrop() {
   let rows = '';
 
   Object.entries(byType).forEach(([crop, rows_]) => {
-    const totHa   = rows_.reduce((s,c) => s+n(c.ha), 0);
-    const totCost = rows_.reduce((s,c) => s+rowCost(c), 0);
-    const totDM   = rows_.reduce((s,c) => s+netDM(c), 0);
+    const totHa    = rows_.reduce((s,c) => s+n(c.ha), 0);
+    const totCost  = rows_.reduce((s,c) => s+rowCost(c), 0);
+    const totBudDM = rows_.reduce((s,c) => s+netDM(c), 0);
+    const totActDM = rows_.filter(c => hasActual(c)).reduce((s,c) => s+(actualNetDM(c)||0), 0);
+    const hasAny   = rows_.some(c => hasActual(c));
+    const actCell  = hasAny ? fmtT(totActDM) : '—';
     rows += `<tr class="section-row"><td colspan="2"><span class="tag ${CROP_TAG[crop]||'tag-other'}">${crop}</span></td>
       <td style="text-align:right">${totHa.toFixed(1)} ha</td><td></td>
       <td style="text-align:right">${n(GM[crop]?.yieldKgHA).toLocaleString()}</td>
-      <td style="text-align:right" colspan="4">${fmtT(totDM)} DM</td>
+      <td style="text-align:right">${actCell}</td><td></td>
+      <td style="text-align:right" colspan="5">${fmtT(totBudDM)} budgeted</td>
       <td style="text-align:right">${fmt$(totCost)}</td><td></td></tr>`;
     rows_.forEach(c => { rows += cropRow(c); });
   });
 
-  if (!rows) rows = `<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--muted);">No paddocks yet — click Add Paddock below</td></tr>`;
+  if (!rows) rows = `<tr><td colspan="14" style="text-align:center;padding:20px;color:var(--muted);">No paddocks yet — click Add Paddock below</td></tr>`;
 
+  const closed = isSeasonClosed();
   document.getElementById('tab-crop').innerHTML = `
     <div class="toolbar">
-      <div class="section-title" style="flex:1;border:none;margin:0">Crop Plan — ${activeYear}</div>
-      <button class="btn btn-primary" onclick="addCropRow()">+ Add Paddock</button>
+      <div class="section-title" style="flex:1;border:none;margin:0">Crop Plan — ${activeYear}${closed ? ' <span style="font-size:12px;color:var(--warn);font-weight:600">🔒 Locked</span>' : ''}</div>
+      ${!closed ? `<button class="btn btn-primary" onclick="addCropRow()">+ Add Paddock</button>` : ''}
+      <button class="btn btn-ghost btn-sm" onclick="toggleCloseSeason()" title="${closed ? 'Unlock this season for editing' : 'Lock this season as read-only'}">${closed ? '🔓 Unlock Season' : '🔒 Lock Season'}</button>
     </div>
     <div class="tbl-wrap">
       <table>
         <thead><tr>
           <th>Paddock</th><th>Crop</th><th style="text-align:right">Ha</th>
-          <th>Drill Date</th><th style="text-align:right">Yield kgDM/ha</th>
+          <th>Drill Date</th><th style="text-align:right">Budget kgDM/ha</th>
+          <th style="text-align:right">Actual kgDM/ha</th><th style="text-align:right">Δ%</th>
           <th style="text-align:right">Wastage %</th>
           <th style="text-align:right">Seed $/ha</th><th style="text-align:right">Chem $/ha</th>
           <th style="text-align:right">Fert $/ha</th><th style="text-align:right">Ops $/ha</th>
@@ -529,33 +545,72 @@ function renderCrop() {
         </tr></thead>
         <tbody id="crop-tbody">${rows}</tbody>
       </table>
-      <div class="add-row"><button onclick="addCropRow()">+ Add paddock</button></div>
+      ${!closed ? `<div class="add-row"><button onclick="addCropRow()">+ Add paddock</button></div>` : ''}
     </div>`;
 }
 
 function cropRow(c) {
-  const cost = rowCost(c);
-  const opts = CROPS.map(x => `<option${x===c.crop?' selected':''}>${x}</option>`).join('');
+  const cost   = rowCost(c);
+  const locked = isSeasonClosed();
+  const dis    = locked ? ' disabled' : '';
+  const opts   = CROPS.map(x => `<option${x===c.crop?' selected':''}>${x}</option>`).join('');
+  const bud    = n(c.yieldKgHA);
+  const act    = hasActual(c) ? n(c.actualYieldKgHA) : null;
+  const deltaPct = (act !== null && bud > 0) ? Math.round((act - bud) / bud * 100) : null;
+  const deltaHtml = deltaPct !== null
+    ? `<span style="color:${deltaPct>=0?'var(--ok)':'var(--danger)'};font-weight:700">${deltaPct>=0?'+':''}${deltaPct}%</span>`
+    : `<span style="color:var(--muted)">—</span>`;
   return `<tr class="data-row" id="cr-${c.id}">
-    <td><input value="${c.paddock||''}" onchange="updateCrop('${c.id}','paddock',this.value)" placeholder="Paddock name"></td>
-    <td><select onchange="cropTypeChanged('${c.id}',this.value)">${opts}</select></td>
-    <td><input class="num" type="number" value="${c.ha||''}" onchange="updateCropCalc('${c.id}','ha',this.value)" style="width:60px"></td>
-    <td><input value="${c.drillDate||''}" onchange="updateCrop('${c.id}','drillDate',this.value)" placeholder="dd/mm/yy" style="width:80px"></td>
-    <td><input class="num" type="number" value="${c.yieldKgHA||''}" onchange="updateCropCalc('${c.id}','yieldKgHA',this.value)" style="width:80px"></td>
-    <td><input class="num" type="number" value="${n(c.wastage)}" onchange="updateCropCalc('${c.id}','wastage',this.value)" style="width:55px" title="% of gross DM lost to trampling / handling"></td>
-    <td><input class="num" type="number" value="${c.seedHA||''}" onchange="updateCropCalc('${c.id}','seedHA',this.value)" style="width:70px"></td>
-    <td><input class="num" type="number" value="${c.chemHA||''}" onchange="updateCropCalc('${c.id}','chemHA',this.value)" style="width:70px"></td>
-    <td><input class="num" type="number" value="${c.fertHA||''}" onchange="updateCropCalc('${c.id}','fertHA',this.value)" style="width:70px"></td>
-    <td><input class="num" type="number" value="${c.opsHA||''}" onchange="updateCropCalc('${c.id}','opsHA',this.value)" style="width:70px"></td>
+    <td><input value="${c.paddock||''}" onchange="updateCrop('${c.id}','paddock',this.value)" placeholder="Paddock name"${dis}></td>
+    <td><select onchange="cropTypeChanged('${c.id}',this.value)"${dis}>${opts}</select></td>
+    <td><input class="num" type="number" value="${c.ha||''}" onchange="updateCropCalc('${c.id}','ha',this.value)" style="width:60px"${dis}></td>
+    <td><input value="${c.drillDate||''}" onchange="updateCrop('${c.id}','drillDate',this.value)" placeholder="dd/mm/yy" style="width:80px"${dis}></td>
+    <td><input class="num" type="number" value="${c.yieldKgHA||''}" onchange="updateCropCalc('${c.id}','yieldKgHA',this.value)" style="width:80px"${dis}></td>
+    <td><input class="num" type="number" value="${act !== null ? act : ''}" onchange="updateActualYield('${c.id}',this.value)" placeholder="actual" style="width:80px;border-color:${act!==null?'var(--lime)':'var(--border)'}"${dis}></td>
+    <td style="text-align:center" id="cr-delta-${c.id}">${deltaHtml}</td>
+    <td><input class="num" type="number" value="${n(c.wastage)}" onchange="updateCropCalc('${c.id}','wastage',this.value)" style="width:55px" title="% of gross DM lost to trampling / handling"${dis}></td>
+    <td><input class="num" type="number" value="${c.seedHA||''}" onchange="updateCropCalc('${c.id}','seedHA',this.value)" style="width:70px"${dis}></td>
+    <td><input class="num" type="number" value="${c.chemHA||''}" onchange="updateCropCalc('${c.id}','chemHA',this.value)" style="width:70px"${dis}></td>
+    <td><input class="num" type="number" value="${c.fertHA||''}" onchange="updateCropCalc('${c.id}','fertHA',this.value)" style="width:70px"${dis}></td>
+    <td><input class="num" type="number" value="${c.opsHA||''}" onchange="updateCropCalc('${c.id}','opsHA',this.value)" style="width:70px"${dis}></td>
     <td style="text-align:right;font-weight:600" id="cr-cost-${c.id}">${fmt$(cost)}</td>
-    <td><button class="del-btn" onclick="deleteCrop('${c.id}')">x</button></td>
+    <td>${locked ? '' : `<button class="del-btn" onclick="deleteCrop('${c.id}')">✕</button>`}</td>
   </tr>`;
+}
+
+function isSeasonClosed() { return (settings.closedYears || []).includes(activeYear); }
+
+function toggleCloseSeason() {
+  settings.closedYears = settings.closedYears || [];
+  const idx = settings.closedYears.indexOf(activeYear);
+  if (idx >= 0) settings.closedYears.splice(idx, 1);
+  else settings.closedYears.push(activeYear);
+  save();
+  renderCrop();
+}
+
+function updateActualYield(id, val) {
+  const c = cropPlan.find(x => x.id === id);
+  if (!c) return;
+  c.actualYieldKgHA = val;
+  save();
+  const bud = n(c.yieldKgHA);
+  const act = val !== '' ? n(val) : null;
+  const el  = document.getElementById('cr-delta-' + id);
+  if (el) {
+    if (act !== null && bud > 0) {
+      const pct = Math.round((act - bud) / bud * 100);
+      el.innerHTML = `<span style="color:${pct>=0?'var(--ok)':'var(--danger)'};font-weight:700">${pct>=0?'+':''}${pct}%</span>`;
+    } else {
+      el.innerHTML = `<span style="color:var(--muted)">—</span>`;
+    }
+  }
 }
 
 function addCropRow() {
   const crop = 'Kale';
   const gm = GM[crop];
-  const c = { id: uid(), year: activeYear, paddock:'', crop, ha:'', drillDate:'', yieldKgHA: gm.yieldKgHA, wastage: gm.wastage, seedHA: gm.seedHA, chemHA: gm.chemHA, fertHA: gm.fertHA, opsHA: gm.opsHA, notes:'' };
+  const c = { id: uid(), year: activeYear, paddock:'', crop, ha:'', drillDate:'', yieldKgHA: gm.yieldKgHA, wastage: gm.wastage, actualYieldKgHA: '', seedHA: gm.seedHA, chemHA: gm.chemHA, fertHA: gm.fertHA, opsHA: gm.opsHA, notes:'' };
   cropPlan.push(c);
   save();
   renderCrop();
@@ -704,19 +759,31 @@ function renderFeed() {
     </tr>`;
   }).join('');
 
+  const showActuals = anyActuals();
+  const budTotalDM  = budgetCropSupply();
   const cropFeedRows = yearCrop().length ? yearCrop().map(c => {
-    const gross = grossDM(c);
-    const net   = netDM(c);
+    const gross   = grossDM(c);
+    const budNet  = netDM(c);
+    const actN    = actualNetDM(c);
+    const effNet  = actN !== null ? actN : budNet;
+    const actYld  = hasActual(c) ? n(c.actualYieldKgHA).toLocaleString() : '—';
+    const actCell = showActuals ? `<td style="text-align:right;color:var(--info)">${actYld}</td>` : '';
+    const deltaCell = showActuals ? (() => {
+      if (!hasActual(c)) return '<td></td>';
+      const pct = Math.round((n(c.actualYieldKgHA) - n(c.yieldKgHA)) / (n(c.yieldKgHA)||1) * 100);
+      return `<td style="text-align:right;color:${pct>=0?'var(--ok)':'var(--danger)'};font-weight:700">${pct>=0?'+':''}${pct}%</td>`;
+    })() : '';
     return `<tr>
       <td><span class="tag ${CROP_TAG[c.crop]||'tag-other'}">${c.crop}</span></td>
       <td>${c.paddock||'-'}</td>
       <td style="text-align:right">${n(c.ha).toFixed(1)}</td>
       <td style="text-align:right">${n(c.yieldKgHA).toLocaleString()}</td>
+      ${actCell}${deltaCell}
       <td style="text-align:right;color:var(--muted)">${fmtDM(gross)}</td>
       <td style="text-align:right">${n(c.wastage)}%</td>
-      <td style="text-align:right;font-weight:600">${fmtDM(net)}</td>
+      <td style="text-align:right;font-weight:600${actN!==null?';color:var(--info)':''}">${fmtDM(effNet)}</td>
     </tr>`;
-  }).join('') : `<tr><td colspan="7" style="color:var(--muted);padding:12px">No crops in plan</td></tr>`;
+  }).join('') : `<tr><td colspan="${showActuals?9:7}" style="color:var(--muted);padding:12px">No crops in plan</td></tr>`;
 
   document.getElementById('tab-feed').innerHTML = `
     <div class="fb-summary">
@@ -742,13 +809,20 @@ function renderFeed() {
 
     <div class="fb-section">
       <div>
-        <div class="section-title" style="font-size:14px;">Supply from Crops <span style="font-size:12px;font-weight:400;color:var(--muted)">(crop-specific wastage applied)</span></div>
+        <div class="section-title" style="font-size:14px;">Supply from Crops <span style="font-size:12px;font-weight:400;color:var(--muted)">(crop-specific wastage applied${showActuals?' — <span style="color:var(--info)">blue = actual</span>':''})</span></div>
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Crop</th><th>Paddock</th><th style="text-align:right">Ha</th><th style="text-align:right">Yield kgDM/ha</th><th style="text-align:right">Gross DM</th><th style="text-align:right">Wastage</th><th style="text-align:right">Net DM consumed</th></tr></thead>
+            <thead><tr>
+              <th>Crop</th><th>Paddock</th><th style="text-align:right">Ha</th><th style="text-align:right">Budget kgDM/ha</th>
+              ${showActuals ? '<th style="text-align:right;color:#90CAF9">Actual kgDM/ha</th><th style="text-align:right">Δ%</th>' : ''}
+              <th style="text-align:right">Gross DM</th><th style="text-align:right">Wastage</th><th style="text-align:right">Net DM consumed</th>
+            </tr></thead>
             <tbody>
               ${cropFeedRows}
-              <tr class="total-row"><td colspan="6">Total net DM from crops</td><td style="text-align:right">${fmtDM(cSup)}</td></tr>
+              <tr class="total-row">
+                <td colspan="${showActuals?8:6}">Total net DM from crops${showActuals && cSup!==budTotalDM ? ` (budget: ${fmtT(budTotalDM)})` : ''}</td>
+                <td style="text-align:right">${fmtDM(cSup)}</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -892,24 +966,32 @@ function renderHistory() {
   const yrs = getYears();
 
   const rows = yrs.map(y => {
-    const cp = cropPlan.filter(c    => (c.year    || YEAR) === y);
-    const sr = stockReq.filter(r   => (r.year    || YEAR) === y);
-    const su = supplements.filter(x => (x.year   || YEAR) === y);
-    const ha      = cp.reduce((s,c) => s+n(c.ha), 0);
-    const cSup    = cp.reduce((s,c) => s+netDM(c), 0);
-    const sSup    = su.reduce((s,x) => s+n(x.kgDM), 0);
-    const supply  = cSup + sSup;
-    const demand  = sr.reduce((s,r) => s+n(r.headCurr)*n(r.kgDMday)*n(r.days), 0);
-    const cost    = cp.reduce((s,c) => s+rowCost(c), 0);
-    const sur     = supply - demand;
-    const isActive = y === activeYear;
+    const cp   = cropPlan.filter(c    => (c.year  || YEAR) === y);
+    const sr   = stockReq.filter(r   => (r.year   || YEAR) === y);
+    const su   = supplements.filter(x => (x.year  || YEAR) === y);
+    const ha        = cp.reduce((s,c) => s+n(c.ha), 0);
+    const budCropDM = cp.reduce((s,c) => s+netDM(c), 0);
+    const actCropDM = cp.some(c => hasActual(c)) ? cp.reduce((s,c) => s+effectiveNetDM(c), 0) : null;
+    const sSup      = su.reduce((s,x) => s+n(x.kgDM), 0);
+    const budSupply = budCropDM + sSup;
+    const actSupply = actCropDM !== null ? actCropDM + sSup : null;
+    const supply    = actSupply !== null ? actSupply : budSupply;
+    const demand    = sr.reduce((s,r) => s+n(r.headCurr)*n(r.kgDMday)*n(r.days), 0);
+    const cost      = cp.reduce((s,c) => s+rowCost(c), 0);
+    const sur       = supply - demand;
+    const isActive  = y === activeYear;
+    const isClosed  = (settings.closedYears || []).includes(y);
+
+    const supplyCell = actSupply !== null
+      ? `${fmtT(actSupply)} <span style="font-size:10px;color:var(--info)" title="Actual recorded">▲</span>`
+      : budSupply > 0 ? fmtT(budSupply) : '<span style="color:var(--muted)">—</span>';
 
     return `<tr class="yr-row${isActive?' yr-active':''}" onclick="changeYear('${y}');showTab('dashboard')">
-      <td><span class="yr-badge">${y}</span>${isActive?' <span style="font-size:11px;color:var(--muted)">← viewing</span>':''}</td>
+      <td><span class="yr-badge">${y}</span>${isActive?' <span style="font-size:11px;color:var(--muted)">← viewing</span>':''}${isClosed?' <span style="font-size:11px;color:var(--warn)">🔒</span>':''}</td>
       <td style="text-align:right">${ha > 0 ? ha.toFixed(1) : '<span style="color:var(--muted)">—</span>'}</td>
       <td style="text-align:right">${cp.length > 0 ? cp.length : '<span style="color:var(--muted)">—</span>'}</td>
       <td style="text-align:right">${sr.length > 0 ? sr.length : '<span style="color:var(--muted)">—</span>'}</td>
-      <td style="text-align:right">${supply > 0 ? fmtT(supply) : '<span style="color:var(--muted)">—</span>'}</td>
+      <td style="text-align:right">${supplyCell}</td>
       <td style="text-align:right">${demand > 0 ? fmtT(demand) : '<span style="color:var(--muted)">—</span>'}</td>
       <td style="text-align:right;font-weight:700;color:${sur>0?'var(--ok)':sur<0?'var(--danger)':'inherit'}">
         ${supply > 0 && demand > 0 ? (sur>=0?'+':'')+fmtT(sur) : '<span style="color:var(--muted)">—</span>'}
@@ -923,7 +1005,7 @@ function renderHistory() {
     <div class="section-title">All Seasons
       <button class="btn btn-sm btn-ghost" onclick="newYear()">+ New Season</button>
     </div>
-    <p style="color:var(--muted);font-size:12px;margin:0 0 16px">Click any row to open that season across all tabs. The currently viewed season is highlighted.</p>
+    <p style="color:var(--muted);font-size:12px;margin:0 0 16px">Click any row to open that season. <span style="color:var(--info)">▲</span> = actual yield recorded. 🔒 = season locked.</p>
     <div class="tbl-wrap">
       <table>
         <thead><tr>
@@ -1248,20 +1330,26 @@ function renderPaddockDetail(id) {
   // Crop history (computed)
   const hist = paddockCropHistory(p.name);
   const histRows = hist.length ? hist.map(c => {
-    const gDM = grossDM(c);
-    const nDM = netDM(c);
-    const cost = rowCost(c);
+    const budYld   = n(c.yieldKgHA);
+    const actYld   = hasActual(c) ? n(c.actualYieldKgHA) : null;
+    const nDM      = effectiveNetDM(c);
+    const cost     = rowCost(c);
+    const deltaPct = (actYld !== null && budYld > 0) ? Math.round((actYld - budYld) / budYld * 100) : null;
+    const actCell  = actYld !== null
+      ? `<span style="color:var(--info);font-weight:700">${actYld.toLocaleString()}</span>${deltaPct!==null?` <span style="color:${deltaPct>=0?'var(--ok)':'var(--danger)'}">${deltaPct>=0?'+':''}${deltaPct}%</span>`:''}`
+      : `<span style="color:var(--muted)">—</span>`;
     return `<tr>
       <td><span class="yr-badge">${c.year}</span></td>
       <td><span class="tag ${CROP_TAG[c.crop]||'tag-other'}">${c.crop}</span></td>
       <td style="text-align:right">${n(c.ha).toFixed(1)}</td>
-      <td style="text-align:right">${n(c.yieldKgHA).toLocaleString()}</td>
+      <td style="text-align:right">${budYld.toLocaleString()}</td>
+      <td style="text-align:right">${actCell}</td>
       <td style="text-align:right">${fmtT(nDM)}</td>
       <td style="text-align:right">${fmt$(cost)}</td>
       <td style="text-align:right;color:var(--info)">${nDM > 0 ? '$' + (cost/nDM).toFixed(3) + '/kgDM' : '—'}</td>
       <td style="font-size:11px;color:var(--muted)">${c.notes||''}</td>
     </tr>`;
-  }).join('') : `<tr><td colspan="8" class="no-data" style="padding:10px 0">No crop history for this paddock</td></tr>`;
+  }).join('') : `<tr><td colspan="9" class="no-data" style="padding:10px 0">No crop history for this paddock</td></tr>`;
 
   // Soil tests
   const tests = soilTests.filter(t => t.paddockId === id).sort((a,b) => b.date.localeCompare(a.date));
@@ -1325,7 +1413,7 @@ function renderPaddockDetail(id) {
       </div>
       <div class="tbl-wrap" style="margin:0">
         <table style="font-size:12px">
-          <thead><tr><th>Season</th><th>Crop</th><th style="text-align:right">Ha</th><th style="text-align:right">Yield kgDM/ha</th><th style="text-align:right">Net DM</th><th style="text-align:right">Cost</th><th style="text-align:right">$/kgDM</th><th>Notes</th></tr></thead>
+          <thead><tr><th>Season</th><th>Crop</th><th style="text-align:right">Ha</th><th style="text-align:right">Budget kgDM/ha</th><th style="text-align:right;color:#90CAF9">Actual kgDM/ha</th><th style="text-align:right">Net DM</th><th style="text-align:right">Cost</th><th style="text-align:right">$/kgDM</th><th>Notes</th></tr></thead>
           <tbody>${histRows}</tbody>
         </table>
       </div>
