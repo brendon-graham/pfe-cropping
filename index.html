@@ -1702,7 +1702,12 @@ async function pullFromSheet() {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     if (Array.isArray(data.cropPlan) && data.cropPlan.length) {
-      data.cropPlan.forEach(c => { if (!c.year) c.year = YEAR; });
+      data.cropPlan.forEach(c => {
+        if (c.opsHA && _yearPat.test(c.opsHA) && c.opsHA !== c.year) { c.year = c.opsHA; c.opsHA = ''; }
+        if (!c.year) c.year = YEAR;
+        if (c.actualYieldKgHA === undefined) c.actualYieldKgHA = '';
+        if (c.wastage === undefined || c.wastage === null || c.wastage === '') c.wastage = GM[c.crop]?.wastage ?? 15;
+      });
       cropPlan = data.cropPlan;
     }
     if (Array.isArray(data.stockReq) && data.stockReq.length) {
