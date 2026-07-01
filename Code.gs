@@ -1,12 +1,15 @@
-// PFE Cropping App v2.2 — Apps Script Backend
+// PFE Cropping App v2.3 — Apps Script Backend
 // Sheet ID: 1nSzOt6nBKqnYYmz8Dw4r7UsY05l699jMmamhQMYIoNk
-// 'year' added at end of CROP/STOCK/SUPP cols — old rows without it default to 2026/27 in the app.
-// v2.2: 'wastage' added after yieldKgHA — old rows without it get crop-type default in the app on load.
+// v2.2: 'wastage' added after yieldKgHA — old rows without it get crop-type default on load.
+// v2.3: Paddock Register — three new sheets: Paddocks, SoilTests, LimeEvents.
 
-const CROP_COLS  = ['id','paddock','crop','ha','drillDate','yieldKgHA','wastage','seedHA','chemHA','fertHA','opsHA','notes','year'];
-const STOCK_COLS = ['id','species','cls','headPrev','headCurr','kgDMday','period','days','feedSource','notes','year'];
-const SUPP_COLS  = ['id','name','type','kgDM','costPerKgDM','notes','year'];
-const HIST_COLS  = ['id','year','paddock','crop','ha','yieldBudget','yieldActual','notes'];
+const CROP_COLS      = ['id','paddock','crop','ha','drillDate','yieldKgHA','wastage','seedHA','chemHA','fertHA','opsHA','notes','year'];
+const STOCK_COLS     = ['id','species','cls','headPrev','headCurr','kgDMday','period','days','feedSource','notes','year'];
+const SUPP_COLS      = ['id','name','type','kgDM','costPerKgDM','notes','year'];
+const PADDOCK_COLS   = ['id','name','ha','soilType','notes'];
+const SOILTEST_COLS  = ['id','paddockId','date','pH','olsenP','qtK','ss','qtCa','notes'];
+const LIMEEVENT_COLS = ['id','paddockId','date','rateT','notes'];
+const HIST_COLS      = ['id','year','paddock','crop','ha','yieldBudget','yieldActual','notes'];
 
 function ensureSheet(ss, name, headers) {
   let sh = ss.getSheetByName(name);
@@ -87,6 +90,9 @@ function doGet(e) {
       if (Array.isArray(payload.cropPlan))    rowsToSheet(ensureSheet(ss,'CropPlan',CROP_COLS), CROP_COLS, payload.cropPlan);
       if (Array.isArray(payload.stockReq))    rowsToSheet(ensureSheet(ss,'StockReq',STOCK_COLS), STOCK_COLS, payload.stockReq);
       if (Array.isArray(payload.supplements)) rowsToSheet(ensureSheet(ss,'Supplements',SUPP_COLS), SUPP_COLS, payload.supplements);
+      if (Array.isArray(payload.paddocks))    rowsToSheet(ensureSheet(ss,'Paddocks',PADDOCK_COLS), PADDOCK_COLS, payload.paddocks);
+      if (Array.isArray(payload.soilTests))   rowsToSheet(ensureSheet(ss,'SoilTests',SOILTEST_COLS), SOILTEST_COLS, payload.soilTests);
+      if (Array.isArray(payload.limeEvents))  rowsToSheet(ensureSheet(ss,'LimeEvents',LIMEEVENT_COLS), LIMEEVENT_COLS, payload.limeEvents);
       if (typeof payload.aiNotes === 'string') appendAILog(ss, payload.aiNotes, newTs);
       setTs(ss, newTs);
       return respond(JSON.stringify({status:'ok', lastModified:newTs}), e);
@@ -98,6 +104,9 @@ function doGet(e) {
       cropPlan:    sheetToRows(ensureSheet(ss,'CropPlan',CROP_COLS), CROP_COLS),
       stockReq:    sheetToRows(ensureSheet(ss,'StockReq',STOCK_COLS), STOCK_COLS),
       supplements: sheetToRows(ensureSheet(ss,'Supplements',SUPP_COLS), SUPP_COLS),
+      paddocks:    sheetToRows(ensureSheet(ss,'Paddocks',PADDOCK_COLS), PADDOCK_COLS),
+      soilTests:   sheetToRows(ensureSheet(ss,'SoilTests',SOILTEST_COLS), SOILTEST_COLS),
+      limeEvents:  sheetToRows(ensureSheet(ss,'LimeEvents',LIMEEVENT_COLS), LIMEEVENT_COLS),
       aiNotes:     getAINotes(ss),
       lastModified: getTs(ss)
     };
@@ -111,6 +120,7 @@ function doGet(e) {
 // ============================================================
 // SEEDING — run each function separately from the editor.
 // ORDER FOR FRESH SETUP:
+//   0. seedPaddocks        — clears + writes paddock register + soil tests + lime events (run FIRST)
 //   1. seedCropPlan        — clears + writes 26/27 crop plan
 //   2. seedStockReq        — clears + writes 26/27 stock req
 //   3. seedSupplements     — clears + writes 26/27 supplements
@@ -486,4 +496,118 @@ function respond(json, e) {
     return ContentService.createTextOutput(cb + '(' + json + ')').setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
   return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ---------- Paddock Register ----------
+// Run seedPaddocks() once from the Apps Script editor to push all paddock/soil test/lime data to Sheets.
+// The app also seeds this data locally in localStorage on first load (seedLocalPaddocks).
+
+function seedPaddocks() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const pdks = [
+    {id:'p01',name:'North Harbour',        ha:4.92,  soilType:'Ruapuna_2a.1',                notes:''},
+    {id:'p02',name:'Wanganui',             ha:5.47,  soilType:'Ruapuna_2a.1',                notes:''},
+    {id:'p03',name:'Bull',                 ha:6.95,  soilType:'Ruapuna_2a.1',                notes:''},
+    {id:'p04',name:'Bens',                 ha:5.17,  soilType:'Waikiwi_31a.1',               notes:''},
+    {id:'p05',name:'Waikato',              ha:11.72, soilType:'Ruapuna_2a.1',                notes:''},
+    {id:'p06',name:'River 1',              ha:7.56,  soilType:'Ruapuna_2a.1',                notes:''},
+    {id:'p07',name:'River 2',              ha:5.28,  soilType:'Ruapuna_2a.1',                notes:''},
+    {id:'p08',name:'River 3',              ha:5.57,  soilType:'Ruapuna_2a.1',                notes:''},
+    {id:'p09',name:'River 4',              ha:3.42,  soilType:'Ruapuna_2a.1',                notes:''},
+    {id:'p10',name:'River 5',              ha:4.53,  soilType:'Ruapuna_2a.1',                notes:''},
+    {id:'p11',name:'Horsfall 1',           ha:6.82,  soilType:'Waikiwi_31a.1',               notes:''},
+    {id:'p12',name:'Horsfall 2',           ha:4.24,  soilType:'Waikiwi_31a.1',               notes:''},
+    {id:'p13',name:'Horsfall 3',           ha:5.60,  soilType:'Waikiwi_31a.1',               notes:''},
+    {id:'p14',name:'Horsfall 4',           ha:6.22,  soilType:'Waikiwi_31a.1',               notes:''},
+    {id:'p15',name:'Ryans',                ha:4.70,  soilType:'Mayfield_2a.1',               notes:''},
+    {id:'p16',name:'Yards',                ha:5.03,  soilType:'',                            notes:''},
+    {id:'p17',name:'Cattle Yards 3',       ha:4.54,  soilType:'Ruapuna_2a.1/Waikiwi_31a.1', notes:'Boundary soil type'},
+    {id:'p18',name:'Cattle Yards 2',       ha:5.31,  soilType:'Ruapuna_2a.1/Waikiwi_31a.1', notes:'Boundary soil type'},
+    {id:'p19',name:'Cattle Yards 4',       ha:6.31,  soilType:'',                            notes:''},
+    {id:'p20',name:'Little Horsfall Swamp',ha:4.28,  soilType:'',                            notes:''},
+    {id:'p21',name:'Deershed Drive',       ha:3.70,  soilType:'Ashburton_12a.1',             notes:''},
+    {id:'p22',name:'Two Tanks 2',          ha:4.54,  soilType:'Mayfield_2a.1',               notes:''},
+    {id:'p23',name:'McKerchers',           ha:7.05,  soilType:'Mayfield_2a.1',               notes:''},
+    {id:'p24',name:'Sowbie 1',             ha:4.68,  soilType:'',                            notes:''},
+    {id:'p25',name:'Sowbie 2',             ha:3.84,  soilType:'',                            notes:''},
+    {id:'p26',name:'Sowbie 3',             ha:4.93,  soilType:'',                            notes:''},
+    {id:'p27',name:'Sowbie 4',             ha:6.11,  soilType:'',                            notes:''},
+    {id:'p28',name:'One Tree',             ha:7.80,  soilType:'Ashburton_12a.1',             notes:''},
+    {id:'p29',name:'Golden Willows 3',     ha:6.73,  soilType:'',                            notes:''},
+    {id:'p30',name:'Golden Willows 4',     ha:4.82,  soilType:'',                            notes:''},
+    {id:'p31',name:'Golden Willows 5',     ha:4.98,  soilType:'',                            notes:''},
+    {id:'p32',name:'Woodings',             ha:6.88,  soilType:'Mayfield_2a.1',               notes:''},
+    {id:'p33',name:'Two Tanks 1',          ha:4.67,  soilType:'',                            notes:''},
+    {id:'p34',name:'Thames Valley',        ha:7.14,  soilType:'',                            notes:''},
+    {id:'p35',name:'East Coast',           ha:6.62,  soilType:'',                            notes:''},
+    {id:'p36',name:'Poverty Bay',          ha:5.47,  soilType:'',                            notes:''},
+    {id:'p37',name:'King Country',         ha:5.03,  soilType:'',                            notes:''},
+    {id:'p38',name:'Bottom 60',            ha:10.42, soilType:'',                            notes:''},
+    {id:'p39',name:'Boots',                ha:5.53,  soilType:'',                            notes:''},
+    {id:'p40',name:'North Otago',          ha:6.68,  soilType:'',                            notes:''},
+    {id:'p41',name:'Nelson Bays',          ha:8.72,  soilType:'',                            notes:''},
+    {id:'p42',name:'Bottom Stump',         ha:4.86,  soilType:'',                            notes:''},
+    {id:'p43',name:'Top Johns',            ha:4.60,  soilType:'',                            notes:''},
+    {id:'p44',name:'Bottom Oaks',          ha:4.84,  soilType:'',                            notes:'Effective 4.0 ha'},
+    {id:'p45',name:'Oaks 2',               ha:5.41,  soilType:'',                            notes:''},
+    {id:'p46',name:'Oaks 3',               ha:6.32,  soilType:'',                            notes:''},
+    {id:'p47',name:'Oaks 4',               ha:5.41,  soilType:'',                            notes:''},
+    {id:'p48',name:'Top Walnut',           ha:4.95,  soilType:'',                            notes:''},
+    {id:'p49',name:'Pump 1',               ha:3.98,  soilType:'',                            notes:''},
+    {id:'p50',name:'Pump 2',               ha:4.58,  soilType:'',                            notes:''},
+    {id:'p51',name:'Pump 3',               ha:3.90,  soilType:'',                            notes:''},
+    {id:'p52',name:'Andys',                ha:3.28,  soilType:'',                            notes:''},
+    {id:'p53',name:'Top Stump',            ha:4.80,  soilType:'',                            notes:''},
+    {id:'p54',name:'Gum 1',                ha:4.40,  soilType:'',                            notes:''},
+    {id:'p55',name:'Gum 2',                ha:4.54,  soilType:'',                            notes:''},
+    {id:'p56',name:'Mothering Up',         ha:5.22,  soilType:'',                            notes:'Effective 3.78 ha'},
+    {id:'p57',name:'Bondis',               ha:3.34,  soilType:'',                            notes:''},
+    {id:'p58',name:'Big Bills',            ha:7.11,  soilType:'',                            notes:''},
+    {id:'p59',name:'Robs',                 ha:3.68,  soilType:'',                            notes:''},
+    {id:'p60',name:'West Coast',           ha:8.65,  soilType:'',                            notes:''},
+    {id:'p61',name:'Marlborough',          ha:8.45,  soilType:'',                            notes:''},
+    {id:'p62',name:'Johnsons',             ha:3.74,  soilType:'',                            notes:''},
+    {id:'p63',name:'Oregons',              ha:7.85,  soilType:'',                            notes:''},
+    {id:'p64',name:'Georges 1',            ha:4.32,  soilType:'',                            notes:''},
+    {id:'p65',name:'Left Deans',           ha:3.85,  soilType:'',                            notes:''},
+    {id:'p66',name:'Bay of Plenty',        ha:11.09, soilType:'',                            notes:''},
+    {id:'p67',name:'Middle',               ha:9.71,  soilType:'Ruapuna_2a.1',                notes:''},
+    {id:'p68',name:'Buller',               ha:8.01,  soilType:'Ruapuna_2a.1',                notes:''},
+    {id:'p69',name:'Wellington',           ha:7.41,  soilType:'Ruapuna_2a.1',                notes:''},
+    {id:'p70',name:'Wairarapa Bush',       ha:6.40,  soilType:'Ruapuna_2a.1',                notes:''},
+    {id:'p71',name:'Patersons',            ha:5.36,  soilType:'Ruapuna_2a.1',                notes:''},
+  ];
+  const tests = [
+    {id:'st01',paddockId:'p06',date:'09/04/2026',pH:6.0,olsenP:14, qtK:3,  ss:17,qtCa:12,notes:'Critically low P and K — correction needed before Nov drill'},
+    {id:'st02',paddockId:'p07',date:'09/04/2026',pH:5.3,olsenP:28, qtK:14, ss:23,qtCa:9, notes:'Low pH, low Ca — 5t lime applied April 2026'},
+    {id:'st03',paddockId:'p08',date:'09/04/2026',pH:5.4,olsenP:26, qtK:11, ss:19,qtCa:9, notes:'Low pH — no lime. Should have been in April programme.'},
+    {id:'st04',paddockId:'p09',date:'09/04/2026',pH:5.7,olsenP:27, qtK:3,  ss:18,qtCa:10,notes:'Very low K — 4t lime applied April 2026. K correction still needed.'},
+    {id:'st05',paddockId:'p10',date:'09/04/2026',pH:5.7,olsenP:29, qtK:7,  ss:17,qtCa:10,notes:'Low Ca — 4t lime applied April 2026'},
+    {id:'st06',paddockId:'p13',date:'09/04/2026',pH:5.7,olsenP:26, qtK:9,  ss:16,qtCa:9, notes:'Low Ca — no lime applied. Lime recommendation needed.'},
+    {id:'st07',paddockId:'p17',date:'09/04/2026',pH:5.4,olsenP:29, qtK:12, ss:16,qtCa:8, notes:'Low pH, low Ca — 5t lime applied April 2026'},
+    {id:'st08',paddockId:'p21',date:'09/04/2026',pH:5.8,olsenP:55, qtK:19, ss:9, qtCa:8, notes:'Low SS and Ca — 4t lime April 2026. Sulphur needed before Oct drill.'},
+    {id:'st09',paddockId:'p25',date:'09/04/2026',pH:5.6,olsenP:38, qtK:4,  ss:53,qtCa:10,notes:'SS 53 very high — check history. Low K. 4t lime April 2026.'},
+    {id:'st10',paddockId:'p28',date:'09/04/2026',pH:5.4,olsenP:67, qtK:0,  ss:0, qtCa:0, notes:'High P — no P needed. Already drilled Apr 2026 (Triticale). pH low.'},
+    {id:'st11',paddockId:'p11',date:'01/08/2025',pH:5.7,olsenP:40, qtK:0,  ss:0, qtCa:0, notes:'Aug 2025 test A. Already drilled Apr 2026 (Rape).'},
+    {id:'st12',paddockId:'p11',date:'01/08/2025',pH:6.2,olsenP:17, qtK:0,  ss:0, qtCa:0, notes:'Aug 2025 test B.'},
+    {id:'st13',paddockId:'p14',date:'01/08/2025',pH:5.6,olsenP:41, qtK:0,  ss:0, qtCa:0, notes:'Aug 2025 test A. Already drilled Apr 2026 (Rape).'},
+    {id:'st14',paddockId:'p14',date:'01/08/2025',pH:6.0,olsenP:20, qtK:0,  ss:0, qtCa:0, notes:'Aug 2025 test B.'},
+  ];
+  const limes = [
+    {id:'l01',paddockId:'p07',date:'01/04/2026',rateT:5, notes:'Ravensdown lime programme P7776988'},
+    {id:'l02',paddockId:'p09',date:'01/04/2026',rateT:4, notes:'Ravensdown lime programme P7776988'},
+    {id:'l03',paddockId:'p10',date:'01/04/2026',rateT:4, notes:'Ravensdown lime programme P7776988'},
+    {id:'l04',paddockId:'p17',date:'01/04/2026',rateT:5, notes:'Ravensdown lime programme P7776988'},
+    {id:'l05',paddockId:'p21',date:'01/04/2026',rateT:4, notes:'Ravensdown lime programme P7776988'},
+    {id:'l06',paddockId:'p25',date:'01/04/2026',rateT:4, notes:'Ravensdown lime programme P7776988'},
+    {id:'l07',paddockId:'p67',date:'01/04/2026',rateT:4, notes:'Ravensdown P7776988 — V1 crop paddock. NOT in V2 plan. Lime benefits pasture.'},
+    {id:'l08',paddockId:'p69',date:'01/04/2026',rateT:9, notes:'Ravensdown P7776988 — 4t + 5t applied. V1 only. NOT in V2 plan.'},
+    {id:'l09',paddockId:'p70',date:'01/04/2026',rateT:4, notes:'Ravensdown P7776988 — V1 only. NOT in V2 plan.'},
+    {id:'l10',paddockId:'p71',date:'01/04/2026',rateT:4, notes:'Ravensdown P7776988 — V1 only. NOT in V2 plan.'},
+    {id:'l11',paddockId:'p68',date:'01/04/2026',rateT:4, notes:'Ravensdown P7776988 — V1 only. NOT in V2 plan.'},
+  ];
+  rowsToSheet(ensureSheet(ss,'Paddocks',PADDOCK_COLS),     PADDOCK_COLS,   pdks);
+  rowsToSheet(ensureSheet(ss,'SoilTests',SOILTEST_COLS),   SOILTEST_COLS,  tests);
+  rowsToSheet(ensureSheet(ss,'LimeEvents',LIMEEVENT_COLS), LIMEEVENT_COLS, limes);
+  SpreadsheetApp.getUi().alert('seedPaddocks complete — ' + pdks.length + ' paddocks, ' + tests.length + ' soil tests, ' + limes.length + ' lime events written to Sheets.');
 }
