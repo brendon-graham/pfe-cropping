@@ -1,8 +1,10 @@
-// PFE Cropping App v2.4 — Apps Script Backend
+// PFE Cropping App v2.7 — Apps Script Backend
 // Sheet ID: 1nSzOt6nBKqnYYmz8Dw4r7UsY05l699jMmamhQMYIoNk
 // v2.2: 'wastage' added after yieldKgHA — old rows without it get crop-type default on load.
 // v2.3: Paddock Register — three new sheets: Paddocks, SoilTests, LimeEvents.
 // v2.4: 'actualYieldKgHA' added after wastage — old rows without it default to '' on load.
+// v2.7: sheetToRows maps by header row (not position); rowsToSheet uses clearContents
+//       (deleteRows failed once grid == data size, silently blocking every push).
 
 const CROP_COLS      = ['id','paddock','crop','ha','drillDate','yieldKgHA','wastage','actualYieldKgHA','seedHA','chemHA','fertHA','opsHA','notes','year'];
 const STOCK_COLS     = ['id','species','cls','headPrev','headCurr','kgDMday','period','days','feedSource','notes','year'];
@@ -23,19 +25,32 @@ function ensureSheet(ss, name, headers) {
   return sh;
 }
 
+// Maps values by the sheet's actual header row, not by column position —
+// inserting a field into a COLS constant must never shift existing data again (v2.2/v2.4 incident).
 function sheetToRows(sh, cols) {
   if (sh.getLastRow() < 2) return [];
-  const vals = sh.getRange(2,1,sh.getLastRow()-1,cols.length).getValues();
+  const width = sh.getLastColumn();
+  const headers = sh.getRange(1,1,1,width).getValues()[0].map(String);
+  const vals = sh.getRange(2,1,sh.getLastRow()-1,width).getValues();
   return vals.filter(r => r[0] !== '').map(r => {
     const o = {};
-    cols.forEach((c,i) => { o[c] = r[i] === '' ? null : r[i]; });
+    cols.forEach(c => {
+      const i = headers.indexOf(c);
+      o[c] = (i === -1 || r[i] === '') ? null : r[i];
+    });
     return o;
   });
 }
 
+// clearContents, not deleteRows — deleting every non-frozen row throws once the grid
+// has shrunk to exactly the data size, which silently killed all pushes.
+// Header row is rewritten on every push so headers always match the written layout.
 function rowsToSheet(sh, cols, rows) {
   const last = sh.getLastRow();
-  if (last > 1) sh.deleteRows(2, last-1);
+  const width = Math.max(sh.getLastColumn(), cols.length);
+  if (last >= 1) sh.getRange(1,1,last,width).clearContents();
+  sh.getRange(1,1,1,cols.length).setValues([cols]);
+  sh.getRange(1,1,1,cols.length).setFontWeight('bold').setBackground('#1B3A1B').setFontColor('#ffffff');
   if (!rows.length) return;
   sh.getRange(2,1,rows.length,cols.length).setValues(rows.map(r => cols.map(c => r[c] != null ? r[c] : '')));
 }
