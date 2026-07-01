@@ -229,7 +229,7 @@ td input.num { text-align: right; }
 
 <script>
 // -- CONSTANTS --
-const APP_VER = '2.4';
+const APP_VER = '2.5';
 const NS = 'crop2_';
 const YEAR = '2026/27';
 const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbxaPkRHrWqjfqgMCaV-s-uZYSvVIFgOyC5IpKg5J6_CLv_5gEkP7_SukyHOYhTvEYI2jQ/exec';
@@ -1022,7 +1022,156 @@ function renderHistory() {
         <tbody>${rows}</tbody>
       </table>
     </div>
-    <p style="font-size:12px;color:var(--muted)">Seasons with no data show — . Use the seed functions in Apps Script to load historical data, or add paddocks manually after selecting the season from the header dropdown.</p>`;
+    <p style="font-size:12px;color:var(--muted)">Seasons with no data show — . Use the seed functions in Apps Script to load historical data, or add paddocks manually after selecting the season from the header dropdown.</p>
+    ${renderCropEfficiency()}`;
+}
+
+function renderCropEfficiency() {
+  if (!cropPlan.length) return '';
+
+  const allSeasons  = getYears().slice().reverse(); // oldest → newest
+  const allCropTypes = [...new Set(cropPlan.map(c => c.crop))].sort();
+
+  // Build matrix: crop → season → aggregated stats
+  const matrix = {};
+  allCropTypes.forEach(crop => {
+    matrix[crop] = {};
+    allSeasons.forEach(y => {
+      const rows = cropPlan.filter(c => c.crop === crop && (c.year || YEAR) === y);
+      if (!rows.length) return;
+      const ha     = rows.reduce((s,c) => s + n(c.ha), 0);
+      const cost   = rows.reduce((s,c) => s + rowCost(c), 0);
+      const budDM  = rows.reduce((s,c) => s + netDM(c), 0);
+      const hasAct = rows.some(c => hasActual(c));
+      const actDM  = hasAct ? rows.reduce((s,c) => s + effectiveNetDM(c), 0) : null;
+      matrix[crop][y] = { ha, cost, budDM, actDM };
+    });
+  });
+
+  const activeCrops = allCropTypes.filter(crop => Object.keys(matrix[crop]).length > 0);
+  if (!activeCrops.length) return '';
+
+  function dmColor(v) {
+    if (!v) return 'inherit';
+    if (v < 0.13) return 'var(--ok)';
+    if (v < 0.18) return 'var(--warn)';
+    return 'var(--danger)';
+  }
+
+  // Season matrix table
+  const seasonThs = allSeasons.map(y => `<th style="text-align:center;min-width:88px">${y}</th>`).join('');
+
+  const matrixRows = activeCrops.map(crop => {
+    // All-season weighted avg (budget)
+    const allV      = Object.values(matrix[crop]);
+    const totCost   = allV.reduce((s,v) => s + v.cost, 0);
+    const totBudDM  = allV.reduce((s,v) => s + v.budDM, 0);
+    const avgBud    = totBudDM > 0 ? totCost / totBudDM : 0;
+
+    const cells = allSeasons.map(y => {
+      const v = matrix[crop][y];
+      if (!v) return `<td style="text-align:center;color:var(--muted);background:#FAFAFA">—</td>`;
+      const effDM  = v.actDM !== null ? v.actDM : v.budDM;
+      const cPerDM = effDM > 0 ? v.cost / effDM : 0;
+      const col    = dmColor(cPerDM);
+      const actMk  = v.actDM !== null ? ` <span style="color:var(--info)" title="Actual yield recorded">▲</span>` : '';
+      return `<td style="text-align:center">
+        <div style="font-weight:700;color:${col}">$${cPerDM.toFixed(3)}</div>
+        <div style="font-size:10px;color:var(--muted)">${v.ha.toFixed(0)} ha${actMk}</div>
+      </td>`;
+    }).join('');
+
+    return `<tr>
+      <td style="white-space:nowrap"><span class="tag ${CROP_TAG[crop]||'tag-other'}">${crop}</span></td>
+      ${cells}
+      <td style="text-align:center;font-weight:700;color:${dmColor(avgBud)}">$${avgBud.toFixed(3)}</td>
+    </tr>`;
+  }).join('');
+
+  // Ranked summary with trend
+  const ranked = activeCrops.map(crop => {
+    const allV     = Object.values(matrix[crop]);
+    const seasons  = Object.keys(matrix[crop]);
+    const totHa    = allV.reduce((s,v) => s + v.ha, 0);
+    const totCost  = allV.reduce((s,v) => s + v.cost, 0);
+    const totBudDM = allV.reduce((s,v) => s + v.budDM, 0);
+    const budPerDM = totBudDM > 0 ? totCost / totBudDM : 0;
+
+    // Actual $/kgDM where actuals exist
+    const actV     = allV.filter(v => v.actDM !== null);
+    const actPerDM = actV.length > 0
+      ? actV.reduce((s,v) => s + v.cost, 0) / actV.reduce((s,v) => s + v.actDM, 0)
+      : null;
+
+    // Trend: compare first and last season's $/kgDM
+    const sortedYrs = seasons.sort();
+    let trend = '<span style="color:var(--muted)">—</span>';
+    if (sortedYrs.length >= 2) {
+      const fv = matrix[crop][sortedYrs[0]];
+      const lv = matrix[crop][sortedYrs[sortedYrs.length - 1]];
+      const fRate = fv.budDM > 0 ? fv.cost / fv.budDM : 0;
+      const lEff  = lv.actDM !== null ? lv.actDM : lv.budDM;
+      const lRate = lEff > 0 ? lv.cost / lEff : 0;
+      if (lRate < fRate * 0.95)      trend = `<span style="color:var(--ok);font-weight:600">↓ Improving</span>`;
+      else if (lRate > fRate * 1.05) trend = `<span style="color:var(--danger);font-weight:600">↑ Worsening</span>`;
+      else                            trend = `<span style="color:var(--muted)">→ Stable</span>`;
+    }
+
+    return { crop, seasons: seasons.length, totHa, budPerDM, actPerDM, trend };
+  }).sort((a,b) => a.budPerDM - b.budPerDM);
+
+  const rankedRows = ranked.map((r, i) => `<tr>
+    <td style="color:var(--muted);font-weight:700">#${i+1}</td>
+    <td><span class="tag ${CROP_TAG[r.crop]||'tag-other'}">${r.crop}</span></td>
+    <td style="text-align:right">${r.seasons}</td>
+    <td style="text-align:right">${r.totHa.toFixed(0)} ha</td>
+    <td style="text-align:right;font-weight:700;color:${dmColor(r.budPerDM)}">$${r.budPerDM.toFixed(3)}/kgDM</td>
+    <td style="text-align:right">${r.actPerDM !== null
+      ? `<span style="color:var(--info);font-weight:700">$${r.actPerDM.toFixed(3)}/kgDM</span>`
+      : '<span style="color:var(--muted)">—</span>'}</td>
+    <td>${r.trend}</td>
+  </tr>`).join('');
+
+  return `
+    <div style="margin-top:32px">
+      <div class="section-title">Crop Efficiency — All Seasons
+        <span style="font-size:12px;font-weight:400;color:var(--muted)">$/kgDM consumed (after wastage)</span>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 16px">
+        <span style="color:var(--ok);font-weight:700">Green &lt;$0.13</span> &nbsp;·&nbsp;
+        <span style="color:var(--warn);font-weight:700">Amber $0.13–0.18</span> &nbsp;·&nbsp;
+        <span style="color:var(--danger);font-weight:700">Red &gt;$0.18</span> &nbsp;·&nbsp;
+        <span style="color:var(--info)">▲</span> = actual yield used &nbsp;·&nbsp;
+        Trend compares first vs most recent season
+      </p>
+
+      <div class="section-title" style="font-size:14px">$/kgDM by Crop Type × Season</div>
+      <div class="tbl-wrap" style="margin-bottom:24px">
+        <table>
+          <thead><tr>
+            <th>Crop</th>
+            ${seasonThs}
+            <th style="text-align:center">All-Season Avg</th>
+          </tr></thead>
+          <tbody>${matrixRows}</tbody>
+        </table>
+      </div>
+
+      <div class="section-title" style="font-size:14px">Ranked cheapest → most expensive (budget basis)</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th></th><th>Crop</th>
+            <th style="text-align:right">Seasons</th>
+            <th style="text-align:right">Total Ha</th>
+            <th style="text-align:right">Budget $/kgDM</th>
+            <th style="text-align:right">Actual $/kgDM</th>
+            <th>Trend (first → latest season)</th>
+          </tr></thead>
+          <tbody>${rankedRows}</tbody>
+        </table>
+      </div>
+    </div>`;
 }
 
 // -- AI ADVISOR --
