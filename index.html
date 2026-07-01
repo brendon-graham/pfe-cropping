@@ -232,6 +232,7 @@ td input.num { text-align: right; }
 const APP_VER = '2.6';
 const NS = 'crop2_';
 const YEAR = '2026/27';
+const YEAR_PAT = /^\d{4}\/\d{2}$/;
 const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbxaPkRHrWqjfqgMCaV-s-uZYSvVIFgOyC5IpKg5J6_CLv_5gEkP7_SukyHOYhTvEYI2jQ/exec';
 
 const CROPS = ['Kale','Swedes','Fodder Beet','Lifting Beet','Maize','Rape','Triticale','Clover','Other'];
@@ -331,9 +332,9 @@ function load() {
   settings.disconnected = settings.disconnected || false;
   activeYear  = settings.year || YEAR;
   // Migrate rows where old schema shift put year value into opsHA
-  const _yearPat = /^\d{4}\/\d{2}$/;
+  const YEAR_PAT = /^\d{4}\/\d{2}$/;
   cropPlan.forEach(c => {
-    if (c.opsHA && _yearPat.test(c.opsHA) && c.opsHA !== c.year) {
+    if (c.opsHA && YEAR_PAT.test(c.opsHA) && c.opsHA !== c.year) {
       c.year = c.opsHA;
       c.opsHA = '';
     }
@@ -1703,7 +1704,7 @@ async function pullFromSheet() {
     if (data.error) throw new Error(data.error);
     if (Array.isArray(data.cropPlan) && data.cropPlan.length) {
       data.cropPlan.forEach(c => {
-        if (c.opsHA && _yearPat.test(c.opsHA) && c.opsHA !== c.year) { c.year = c.opsHA; c.opsHA = ''; }
+        if (c.opsHA && YEAR_PAT.test(c.opsHA) && c.opsHA !== c.year) { c.year = c.opsHA; c.opsHA = ''; }
         if (!c.year) c.year = YEAR;
         if (c.actualYieldKgHA === undefined) c.actualYieldKgHA = '';
         if (c.wastage === undefined || c.wastage === null || c.wastage === '') c.wastage = GM[c.crop]?.wastage ?? 15;
