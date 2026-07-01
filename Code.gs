@@ -76,6 +76,29 @@ function appendAILog(ss, notes, ts) {
   sh.appendRow([new Date(ts).toISOString().split('T')[0], ts, notes]);
 }
 
+function doPost(e) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const payload = JSON.parse(e.postData.contents);
+    const curTs = getTs(ss);
+    if (payload.clientTs && payload.clientTs < curTs) {
+      return respond(JSON.stringify({status:'stale', lastModified:curTs}), e);
+    }
+    const newTs = Date.now();
+    if (Array.isArray(payload.cropPlan))    rowsToSheet(ensureSheet(ss,'CropPlan',CROP_COLS), CROP_COLS, payload.cropPlan);
+    if (Array.isArray(payload.stockReq))    rowsToSheet(ensureSheet(ss,'StockReq',STOCK_COLS), STOCK_COLS, payload.stockReq);
+    if (Array.isArray(payload.supplements)) rowsToSheet(ensureSheet(ss,'Supplements',SUPP_COLS), SUPP_COLS, payload.supplements);
+    if (Array.isArray(payload.paddocks))    rowsToSheet(ensureSheet(ss,'Paddocks',PADDOCK_COLS), PADDOCK_COLS, payload.paddocks);
+    if (Array.isArray(payload.soilTests))   rowsToSheet(ensureSheet(ss,'SoilTests',SOILTEST_COLS), SOILTEST_COLS, payload.soilTests);
+    if (Array.isArray(payload.limeEvents))  rowsToSheet(ensureSheet(ss,'LimeEvents',LIMEEVENT_COLS), LIMEEVENT_COLS, payload.limeEvents);
+    if (typeof payload.aiNotes === 'string') appendAILog(ss, payload.aiNotes, newTs);
+    setTs(ss, newTs);
+    return respond(JSON.stringify({status:'ok', lastModified:newTs}), e);
+  } catch(err) {
+    return respond(JSON.stringify({error: err.message}), e);
+  }
+}
+
 function doGet(e) {
   try {
     const action = (e && e.parameter && e.parameter.action) || 'pull';
@@ -607,8 +630,16 @@ function seedPaddocks() {
     {id:'l10',paddockId:'p71',date:'01/04/2026',rateT:4, notes:'Ravensdown P7776988 — V1 only. NOT in V2 plan.'},
     {id:'l11',paddockId:'p68',date:'01/04/2026',rateT:4, notes:'Ravensdown P7776988 — V1 only. NOT in V2 plan.'},
   ];
-  rowsToSheet(ensureSheet(ss,'Paddocks',PADDOCK_COLS),     PADDOCK_COLS,   pdks);
-  rowsToSheet(ensureSheet(ss,'SoilTests',SOILTEST_COLS),   SOILTEST_COLS,  tests);
-  rowsToSheet(ensureSheet(ss,'LimeEvents',LIMEEVENT_COLS), LIMEEVENT_COLS, limes);
-  SpreadsheetApp.getUi().alert('seedPaddocks complete — ' + pdks.length + ' paddocks, ' + tests.length + ' soil tests, ' + limes.length + ' lime events written to Sheets.');
+  function writeSheet(name, cols, rows) {
+    let sh = ss.getSheetByName(name);
+    if (!sh) sh = ss.insertSheet(name);
+    sh.clearContents();
+    sh.getRange(1, 1, 1, cols.length).setValues([cols]);
+    if (rows.length) sh.getRange(2, 1, rows.length, cols.length).setValues(rows.map(r => cols.map(c => r[c] != null ? r[c] : '')));
+    SpreadsheetApp.flush();
+  }
+  writeSheet('Paddocks',   PADDOCK_COLS,   pdks);
+  writeSheet('SoilTests',  SOILTEST_COLS,  tests);
+  writeSheet('LimeEvents', LIMEEVENT_COLS, limes);
+  Logger.log('seedPaddocks complete — ' + pdks.length + ' paddocks, ' + tests.length + ' soil tests, ' + limes.length + ' lime events written to Sheets.');
 }

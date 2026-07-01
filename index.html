@@ -229,7 +229,7 @@ td input.num { text-align: right; }
 
 <script>
 // -- CONSTANTS --
-const APP_VER = '2.5';
+const APP_VER = '2.6';
 const NS = 'crop2_';
 const YEAR = '2026/27';
 const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbxaPkRHrWqjfqgMCaV-s-uZYSvVIFgOyC5IpKg5J6_CLv_5gEkP7_SukyHOYhTvEYI2jQ/exec';
@@ -330,6 +330,14 @@ function load() {
   settings.scriptUrl  = settings.scriptUrl  || DEFAULT_URL;
   settings.disconnected = settings.disconnected || false;
   activeYear  = settings.year || YEAR;
+  // Migrate rows where old schema shift put year value into opsHA
+  const _yearPat = /^\d{4}\/\d{2}$/;
+  cropPlan.forEach(c => {
+    if (c.opsHA && _yearPat.test(c.opsHA) && c.opsHA !== c.year) {
+      c.year = c.opsHA;
+      c.opsHA = '';
+    }
+  });
   // Migrate rows that predate the year field
   cropPlan.forEach(c    => { if (!c.year) c.year = YEAR; });
   stockReq.forEach(r    => { if (!r.year) r.year = YEAR; });
@@ -1725,8 +1733,8 @@ async function pushToSheet() {
   if (!settings.scriptUrl || settings.disconnected) { syncPending = false; return; }
   try {
     const payload = { cropPlan, stockReq, supplements, paddocks, soilTests, limeEvents, aiNotes, clientTs: lastTs };
-    const url = settings.scriptUrl + '?action=push&data=' + encodeURIComponent(JSON.stringify(payload));
-    fetch(url, { mode: 'no-cors' }).catch(() => {});
+    const url = settings.scriptUrl;
+    fetch(url, { method: 'POST', body: JSON.stringify(payload) }).catch(() => {});
     lastTs = Date.now();
     localStorage.setItem(NS+'lastTs', lastTs);
     setSyncPill('ok', 'Synced');
