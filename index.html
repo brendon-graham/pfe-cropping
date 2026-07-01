@@ -200,6 +200,7 @@ td input.num { text-align: right; }
   <button onclick="showTab('stock')">Stock Req</button>
   <button onclick="showTab('feed')">Feed Budget</button>
   <button onclick="showTab('financial')">Financial</button>
+  <button onclick="showTab('gm')">Gross Margins</button>
   <button onclick="showTab('history')">All Seasons</button>
   <button onclick="showTab('ai')">AI Advisor</button>
   <button onclick="showTab('settings')">Settings</button>
@@ -212,6 +213,7 @@ td input.num { text-align: right; }
   <div id="tab-stock" class="tab"></div>
   <div id="tab-feed" class="tab"></div>
   <div id="tab-financial" class="tab"></div>
+  <div id="tab-gm" class="tab"></div>
   <div id="tab-history" class="tab"></div>
   <div id="tab-ai" class="tab"></div>
   <div id="tab-settings" class="tab"></div>
@@ -229,7 +231,7 @@ td input.num { text-align: right; }
 
 <script>
 // -- CONSTANTS --
-const APP_VER = '2.6';
+const APP_VER = '2.8';
 const NS = 'crop2_';
 const YEAR = '2026/27';
 const YEAR_PAT = /^\d{4}\/\d{2}$/;
@@ -256,6 +258,177 @@ const CROP_TAG = {
   'Maize':'tag-maize','Rape':'tag-rape','Triticale':'tag-triticale','Clover':'tag-clover','Other':'tag-other'
 };
 
+// Which GM sheet feeds each crop type's cost defaults. Unmapped types (Lifting Beet,
+// Triticale, Other) fall back to the static GM constants above.
+const GM_SOURCE = {
+  'Kale':'Kale', 'Swedes':'Swedes', 'Fodder Beet':'Fodder Beet', 'Maize':'Maize',
+  'Rape':'Winterstar', 'Clover':'Italian Clover',
+};
+
+const GM_CROPS = ['Kale','Swedes','Fodder Beet','Maize','Winterstar','Italian Clover','Red Clover','Lucerne'];
+
+const GM_CROP_WASTE = { 'Kale':25, 'Swedes':20, 'Fodder Beet':10, 'Maize':15, 'Winterstar':25, 'Italian Clover':15, 'Red Clover':15, 'Lucerne':15 };
+
+// Source: Cropping plan 27.xlsx GM tabs (Kale, Swedes, Beet, Maize, Red Clover,
+// Italian Clover, Lucerne, Winterstar GM), transcribed 2 Jul 2026.
+// Yield rows carry the budget yield in `price` (kgDM/ha). Pasture crop yields
+// (Winterstar, clovers, Lucerne) were not in the source tabs — editable defaults.
+const DEFAULT_GM_ITEMS = [
+  ['Kale','Yield','Budget yield',12000,1,'kgDM/ha',''],
+  ['Kale','Operations','Direct Drill',130,1,'ha',1],
+  ['Kale','Operations','Spray Application',30,1,'ha',4],
+  ['Kale','Operations','Fertiliser Application',15,1,'ha',3],
+  ['Kale','Seed','SovGold Kale (Gaucho)',29.48,1,'kg',5],
+  ['Kale','Chemical','Polaris 540',6700,1000,'lt',4],
+  ['Kale','Chemical','Starane Xtra',963,20,'lt',1],
+  ['Kale','Chemical','Unison',588,20,'lt',0.3],
+  ['Kale','Chemical','Magister',552,5,'lt',0.33],
+  ['Kale','Chemical','Raingard',275,10,'lt',0.4],
+  ['Kale','Chemical','Cardinal',154,10,'lt',1.2],
+  ['Kale','Chemical','Milestone',1595,10,'lt',0.75],
+  ['Kale','Chemical','Millennium',300,5,'lt',0.5],
+  ['Kale','Chemical','Ampligo',2100,5,'lt',0.1],
+  ['Kale','Chemical','Exirel',1700,5,'lt',0.15],
+  ['Kale','Chemical','Transform',1700,5,'lt',0.05],
+  ['Kale','Chemical','SideKick',280,20,'lt',1],
+  ['Kale','Chemical','Kantor',390,10,'lt',0.3],
+  ['Kale','Fertiliser','DAP Mix',267,1,'kg',1],
+  ['Kale','Fertiliser','Urea',920,1000,'kg',325],
+  ['Kale','Fertiliser','MOP',0,1000,'kg',0],
+  ['Swedes','Yield','Budget yield',14000,1,'kgDM/ha',''],
+  ['Swedes','Operations','Cultivation',130,1,'ha',2],
+  ['Swedes','Operations','Precision Drill',230,1,'ha',1],
+  ['Swedes','Operations','Spray Application',30,1,'ha',4],
+  ['Swedes','Operations','Fertiliser Application',15,1,'ha',3],
+  ['Swedes','Seed','Hawkstone Swedes',240,1,'ha',1],
+  ['Swedes','Chemical','Polaris 540',6700,1000,'lt',5],
+  ['Swedes','Chemical','Starane Xtra',963,20,'lt',1],
+  ['Swedes','Chemical','Versatill P-Flo',843,10,'lt',0.25],
+  ['Swedes','Chemical','Unison',588,20,'lt',0.3],
+  ['Swedes','Chemical','Magister',552,5,'lt',0.3],
+  ['Swedes','Chemical','Raingard',275,10,'lt',0.4],
+  ['Swedes','Chemical','Pyrinex',278,20,'lt',1.2],
+  ['Swedes','Chemical','Milestone',1595,10,'lt',0.75],
+  ['Swedes','Chemical','Ampligo',2100,5,'lt',0.1],
+  ['Swedes','Chemical','Prosaro',549,10,'lt',1],
+  ['Swedes','Chemical','Amistar',1026,20,'lt',0.5],
+  ['Swedes','Chemical','Molybor',270,10,'lt',2],
+  ['Swedes','Chemical','Minecto Star',1480,4.5,'kg',0.15],
+  ['Swedes','Chemical','SideKick',280,20,'lt',1],
+  ['Swedes','Chemical','Du Wett',1077,20,'lt',0.2],
+  ['Swedes','Fertiliser','DAP Mix',397,1,'kg',1],
+  ['Swedes','Fertiliser','Urea',920,1000,'kg',150],
+  ['Swedes','Fertiliser','MOP',0,1000,'kg',0],
+  ['Fodder Beet','Yield','Budget yield',20000,1,'kgDM/ha',''],
+  ['Fodder Beet','Operations','Precision Drill',230,1,'ha',1],
+  ['Fodder Beet','Operations','Spray Applications',30,1,'ha',4],
+  ['Fodder Beet','Operations','Fertiliser Applications',14,1,'ha',2],
+  ['Fodder Beet','Seed','Beet Seed',478,100000,'seeds',90000],
+  ['Fodder Beet','Chemical','Polaris 450',150,20,'lt',5],
+  ['Fodder Beet','Chemical','Starane Xtra',963,20,'lt',1],
+  ['Fodder Beet','Chemical','Satur8',592,20,'lt',0.25],
+  ['Fodder Beet','Chemical','Ethosat',653,20,'lt',3],
+  ['Fodder Beet','Chemical','Magister',552,5,'lt',0.15],
+  ['Fodder Beet','Chemical','Pyrinex',278.46,20,'lt',1.2],
+  ['Fodder Beet','Chemical','Backrow',168,5,'lt',0.4],
+  ['Fodder Beet','Chemical','Beetrix',744,20,'lt',4.6],
+  ['Fodder Beet','Chemical','Spark',606,10,'lt',0.6],
+  ['Fodder Beet','Chemical','Betanal Quattro',1200,20,'lt',5],
+  ['Fodder Beet','Chemical','Bortrac',150,10,'lt',1],
+  ['Fodder Beet','Chemical','Millennium',295,5,'lt',0.5],
+  ['Fodder Beet','Chemical','Sidekick',279,20,'lt',1],
+  ['Fodder Beet','Chemical','Ampligo',2117,5,'lt',0.1],
+  ['Fodder Beet','Chemical','Mavrik Flo',747,5,'lt',0.2],
+  ['Fodder Beet','Chemical','Versatill',843,10,'lt',0.4],
+  ['Fodder Beet','Chemical','Prosaro',549,10,'lt',1],
+  ['Fodder Beet','Chemical','Amistar',1026,20,'lt',0.5],
+  ['Fodder Beet','Chemical','Cusol',292,20,'lt',2.1],
+  ['Fodder Beet','Chemical','Brassitrel Pro',208,10,'lt',2.1],
+  ['Fodder Beet','Chemical','Du Wett',1077,20,'lt',0.25],
+  ['Fodder Beet','Fertiliser','Beet Mix',220,1,'ha',1],
+  ['Fodder Beet','Fertiliser','SustaiN',920,1000,'kg',125],
+  ['Maize','Yield','Budget yield',18000,1,'kgDM/ha',''],
+  ['Maize','Operations','Plough',160,1,'ha',1],
+  ['Maize','Operations','Drilling',230,1,'ha',1],
+  ['Maize','Operations','Spray Application',30,1,'ha',3],
+  ['Maize','Operations','Fertiliser Application',15,1,'ha',3],
+  ['Maize','Seed','Maize Seed (P7364 Poncho)',666,80000,'seeds',120000],
+  ['Maize','Chemical','Touchdown 500',6700,1000,'lt',5],
+  ['Maize','Chemical','Starane Xtra',963,20,'lt',1],
+  ['Maize','Chemical','Satur8',592,20,'lt',0.25],
+  ['Maize','Chemical','Acierto',174,10,'lt',2.8],
+  ['Maize','Chemical','Atranex',158,10,'kg',1.5],
+  ['Maize','Chemical','Backrow Max',168,5,'lt',0.4],
+  ['Maize','Chemical','Emblem Flo',400,5,'lt',1],
+  ['Maize','Chemical','Latro 500',360,0.5,'gm',0.05],
+  ['Maize','Chemical','Cyhella',350,1,'lt',0.04],
+  ['Maize','Chemical','Versatill',843,10,'lt',0.25],
+  ['Maize','Fertiliser','Boron',2800,1000,'kg',10],
+  ['Maize','Fertiliser','Superphosphate',430,1000,'kg',300],
+  ['Maize','Fertiliser','DAP',1400,1000,'kg',250],
+  ['Maize','Fertiliser','Calmag',750,1000,'kg',50],
+  ['Maize','Fertiliser','Urea',795,1000,'kg',400],
+  ['Maize','Fertiliser','Zinc',3000,1000,'kg',5],
+  ['Maize','Fertiliser','Copper Sulphate',3000,1000,'kg',5],
+  ['Red Clover','Yield','Budget yield',8000,1,'kgDM/ha',''],
+  ['Red Clover','Operations','Applications',30,1,'ha',3],
+  ['Red Clover','Operations','Spreading',15,1,'ha',1],
+  ['Red Clover','Seed','Red Clover Seed',18,1,'kg',12],
+  ['Red Clover','Chemical','Glyphosate',7,1,'lt',7],
+  ['Red Clover','Chemical','Cardinal',15,1,'lt',1.25],
+  ['Red Clover','Chemical','Suscon Green',452,15,'kg',6],
+  ['Red Clover','Chemical','Headstart',930,20,'lt',1],
+  ['Red Clover','Chemical','Millennium',470,5,'lt',0.5],
+  ['Red Clover','Chemical','Cheetah',360,10,'lt',1.5],
+  ['Red Clover','Chemical','Thistrol Plus',550,20,'lt',4],
+  ['Red Clover','Chemical','Slugbait',120,8,'kg',4],
+  ['Red Clover','Fertiliser','Boron',2800,1000,'kg',10],
+  ['Red Clover','Fertiliser','Molybdenum',3800,1000,'kg',2],
+  ['Red Clover','Fertiliser','Super 10',545,1000,'kg',300],
+  ['Italian Clover','Yield','Budget yield',8000,1,'kgDM/ha',''],
+  ['Italian Clover','Operations','Applications',30,1,'ha',2],
+  ['Italian Clover','Operations','Spreading',15,1,'ha',1],
+  ['Italian Clover','Seed','Seed Italian',8,1,'kg',12],
+  ['Italian Clover','Seed','Seed Red Clover',17.6,1,'kg',4],
+  ['Italian Clover','Seed','Seed White Clover',11,1,'kg',2],
+  ['Italian Clover','Chemical','Glyphosate',4,1,'lt',7],
+  ['Italian Clover','Chemical','Cardinal',15,1,'lt',1.25],
+  ['Italian Clover','Chemical','Unison',29.45,1,'kg',0.4],
+  ['Italian Clover','Chemical','Satur8',29.6,1,'lt',0.2],
+  ['Italian Clover','Chemical','Adama',0,1,'lt',1.5],
+  ['Italian Clover','Chemical','Starane Xtra',48,1,'lt',1],
+  ['Italian Clover','Chemical','Versatil Powerflow',84.3,1,'lt',0.2],
+  ['Italian Clover','Chemical','Kantor',39,1,'lt',0.3],
+  ['Italian Clover','Chemical','Slugbait',120,8,'kg',4],
+  ['Italian Clover','Fertiliser','Urea/SOA starter',600,1,'t',0.15],
+  ['Lucerne','Yield','Budget yield',12000,1,'kgDM/ha',''],
+  ['Lucerne','Operations','Maxi/level',300,1,'ha',1],
+  ['Lucerne','Operations','Roller Drill',150,1,'ha',1],
+  ['Lucerne','Operations','Applications',30,1,'ha',3],
+  ['Lucerne','Operations','Spreading',15,1,'ha',1],
+  ['Lucerne','Seed','Lucerne Seed',23.34,1,'kg',15],
+  ['Lucerne','Chemical','Kyte',632,1,'kg',0.14],
+  ['Lucerne','Chemical','Headstart',930,20,'lt',1],
+  ['Lucerne','Chemical','Millennium',470,5,'lt',0.5],
+  ['Lucerne','Chemical','Sidekick',280,20,'lt',1],
+  ['Lucerne','Chemical','Gramoxone',264,20,'lt',2],
+  ['Lucerne','Fertiliser','Boron',2800,1000,'kg',10],
+  ['Lucerne','Fertiliser','Molybdenum',3800,1000,'kg',2],
+  ['Lucerne','Fertiliser','Super 10',500,1000,'kg',300],
+  ['Winterstar','Yield','Budget yield',8000,1,'kgDM/ha',''],
+  ['Winterstar','Operations','Applications',30.5,1,'ha',2],
+  ['Winterstar','Operations','Spreading',15,1,'ha',2],
+  ['Winterstar','Seed','Winterstar Seed',4.95,1,'kg',30],
+  ['Winterstar','Chemical','Glyphosate',7,1,'lt',7],
+  ['Winterstar','Chemical','Starane Xtra',48,1,'lt',1],
+  ['Winterstar','Chemical','Kantor',39,1,'lt',0.5],
+  ['Winterstar','Chemical','Cardinal',15,1,'lt',1.25],
+  ['Winterstar','Chemical','Diazinon 800',20,1,'lt',0],
+  ['Winterstar','Chemical','Slug bait',15,1,'kg',4],
+  ['Winterstar','Fertiliser','Urea/SOA starter',600,1,'t',0.15],
+  ['Winterstar','Fertiliser','SOA',488,1,'t',0.15],
+].map((r,i) => ({ id:'gmi'+i, crop:r[0], category:r[1], item:r[2], price:r[3], packSize:r[4], unit:r[5], ratePerHa:r[6] }));
+
 // -- STATE --
 let cropPlan    = [];
 let stockReq    = [];
@@ -263,6 +436,8 @@ let supplements = [];
 let paddocks    = [];   // {id, name, ha, soilType, notes}
 let soilTests   = [];   // {id, paddockId, date, pH, olsenP, qtK, ss, qtCa, notes}
 let limeEvents  = [];   // {id, paddockId, date, rateT, notes}
+let gmItems     = [];   // {id, crop, category, item, price, packSize, unit, ratePerHa}
+let activeGMCrop = 'Kale';
 let aiNotes     = '';
 let settings    = { scriptUrl: '', disconnected: false };
 let activeYear  = YEAR;
@@ -314,6 +489,7 @@ function save() {
   localStorage.setItem(NS+'paddocks', JSON.stringify(paddocks));
   localStorage.setItem(NS+'soilTests', JSON.stringify(soilTests));
   localStorage.setItem(NS+'limeEvents', JSON.stringify(limeEvents));
+  localStorage.setItem(NS+'gmitems', JSON.stringify(gmItems));
   localStorage.setItem(NS+'ai', aiNotes);
   localStorage.setItem(NS+'settings', JSON.stringify(settings));
   schedulePush();
@@ -326,6 +502,10 @@ function load() {
   paddocks    = JSON.parse(localStorage.getItem(NS+'paddocks')    || '[]');
   soilTests   = JSON.parse(localStorage.getItem(NS+'soilTests')   || '[]');
   limeEvents  = JSON.parse(localStorage.getItem(NS+'limeEvents')  || '[]');
+  // One-time seed only — never overwrite an existing (even empty-after-edit) store
+  gmItems     = localStorage.getItem(NS+'gmitems') === null
+    ? DEFAULT_GM_ITEMS.map(g => ({ ...g }))
+    : JSON.parse(localStorage.getItem(NS+'gmitems') || '[]');
   aiNotes     = localStorage.getItem(NS+'ai') || '';
   settings    = JSON.parse(localStorage.getItem(NS+'settings') || '{}');
   settings.scriptUrl  = settings.scriptUrl  || DEFAULT_URL;
@@ -379,13 +559,37 @@ function totalCropCost() { return yearCrop().reduce((s,c)  => s + rowCost(c), 0)
 function totalSuppCost() { return yearSupps().reduce((s,x) => s + n(x.kgDM)*n(x.costPerKgDM), 0); }
 function totalHa()       { return yearCrop().reduce((s,c)  => s + n(c.ha), 0); }
 
+// -- GROSS MARGIN HELPERS --
+function gmItemsFor(crop)     { return gmItems.filter(g => g.crop === crop); }
+function gmUnitPrice(g)       { return n(g.packSize) > 0 ? n(g.price) / n(g.packSize) : 0; }
+function gmLineTotal(g)       { return gmUnitPrice(g) * n(g.ratePerHa); }
+function gmCatTotal(crop,cat) { return gmItemsFor(crop).filter(g => g.category === cat).reduce((s,g) => s + gmLineTotal(g), 0); }
+function gmTotalHa(crop)      { return ['Operations','Seed','Chemical','Fertiliser'].reduce((s,cat) => s + gmCatTotal(crop,cat), 0); }
+function gmYieldOf(crop)      { const y = gmItemsFor(crop).find(g => g.category === 'Yield'); return y ? n(y.price) : 0; }
+
+// Cost defaults for a crop type — live GM data where mapped, static GM constant otherwise
+function gmDefaults(cropType) {
+  const src  = GM_SOURCE[cropType];
+  const stat = GM[cropType] || GM['Other'];
+  if (!src || !gmItemsFor(src).length) return { ...stat };
+  const y = gmYieldOf(src);
+  return {
+    yieldKgHA: y > 0 ? y : stat.yieldKgHA,
+    wastage:   stat.wastage,
+    seedHA:    Math.round(gmCatTotal(src,'Seed')),
+    chemHA:    Math.round(gmCatTotal(src,'Chemical')),
+    fertHA:    Math.round(gmCatTotal(src,'Fertiliser')),
+    opsHA:     Math.round(gmCatTotal(src,'Operations')),
+  };
+}
+
 // -- TABS --
 function showTab(name) {
   activeTab = name;
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
-  const idx = ['dashboard','crop','paddocks','stock','feed','financial','history','ai','settings'].indexOf(name);
+  const idx = ['dashboard','crop','paddocks','stock','feed','financial','gm','history','ai','settings'].indexOf(name);
   document.querySelectorAll('nav button')[idx].classList.add('active');
   renderTab(name);
 }
@@ -397,6 +601,7 @@ function renderTab(name) {
   if (name === 'stock')      renderStock();
   if (name === 'feed')       renderFeed();
   if (name === 'financial')  renderFinancial();
+  if (name === 'gm')         renderGM();
   if (name === 'history')    renderHistory();
   if (name === 'ai')         renderAI();
   if (name === 'settings')   renderSettings();
@@ -525,7 +730,7 @@ function renderCrop() {
     const actCell  = hasAny ? fmtT(totActDM) : '—';
     rows += `<tr class="section-row"><td colspan="2"><span class="tag ${CROP_TAG[crop]||'tag-other'}">${crop}</span></td>
       <td style="text-align:right">${totHa.toFixed(1)} ha</td><td></td>
-      <td style="text-align:right">${n(GM[crop]?.yieldKgHA).toLocaleString()}</td>
+      <td style="text-align:right">${n(gmDefaults(crop).yieldKgHA).toLocaleString()}</td>
       <td style="text-align:right">${actCell}</td><td></td>
       <td style="text-align:right" colspan="5">${fmtT(totBudDM)} budgeted</td>
       <td style="text-align:right">${fmt$(totCost)}</td><td></td></tr>`;
@@ -618,7 +823,7 @@ function updateActualYield(id, val) {
 
 function addCropRow() {
   const crop = 'Kale';
-  const gm = GM[crop];
+  const gm = gmDefaults(crop);
   const c = { id: uid(), year: activeYear, paddock:'', crop, ha:'', drillDate:'', yieldKgHA: gm.yieldKgHA, wastage: gm.wastage, actualYieldKgHA: '', seedHA: gm.seedHA, chemHA: gm.chemHA, fertHA: gm.fertHA, opsHA: gm.opsHA, notes:'' };
   cropPlan.push(c);
   save();
@@ -645,7 +850,7 @@ function cropTypeChanged(id, crop) {
   const c = cropPlan.find(x => x.id === id);
   if (!c) return;
   c.crop = crop;
-  const gm = GM[crop];
+  const gm = gmDefaults(crop);
   if (gm) { c.yieldKgHA = gm.yieldKgHA; c.wastage = gm.wastage; c.seedHA = gm.seedHA; c.chemHA = gm.chemHA; c.fertHA = gm.fertHA; c.opsHA = gm.opsHA; }
   save();
   renderCrop();
@@ -1213,6 +1418,135 @@ function saveAI() {
   logSync('AI notes saved');
 }
 
+// -- GROSS MARGINS --
+const GM_CATS = ['Operations','Seed','Chemical','Fertiliser'];
+
+function renderGM() {
+  const crop  = activeGMCrop;
+  const items = gmItemsFor(crop);
+  const yieldKg = gmYieldOf(crop);
+  const total = gmTotalHa(crop);
+  const waste = GM_CROP_WASTE[crop] ?? 15;
+  const netYield = yieldKg * (1 - waste/100);
+  const perGrown = yieldKg > 0 ? total / yieldKg : null;
+  const perNet   = netYield > 0 ? total / netYield : null;
+  const cropSel  = GM_CROPS.map(c => `<option${c===crop?' selected':''}>${c}</option>`).join('');
+  const feeds    = Object.entries(GM_SOURCE).filter(([,v]) => v === crop).map(([k]) => k);
+
+  const catTables = GM_CATS.map(cat => {
+    const catItems = items.filter(g => g.category === cat);
+    const rows = catItems.map(g => `<tr class="data-row" id="gmr-${g.id}">
+      <td><input value="${g.item||''}" onchange="updateGMItem('${g.id}','item',this.value)" placeholder="Product / operation" style="min-width:170px"></td>
+      <td><input class="num" type="number" step="0.01" value="${g.price !== '' && g.price !== null ? g.price : ''}" onchange="updateGMItem('${g.id}','price',this.value)" style="width:85px"></td>
+      <td><input class="num" type="number" step="0.01" value="${g.packSize !== '' && g.packSize !== null ? g.packSize : ''}" onchange="updateGMItem('${g.id}','packSize',this.value)" style="width:80px"></td>
+      <td><input value="${g.unit||''}" onchange="updateGMItem('${g.id}','unit',this.value)" style="width:70px"></td>
+      <td><input class="num" type="number" step="0.01" value="${g.ratePerHa !== '' && g.ratePerHa !== null ? g.ratePerHa : ''}" onchange="updateGMItem('${g.id}','ratePerHa',this.value)" style="width:85px"></td>
+      <td style="text-align:right;color:var(--muted)">$${gmUnitPrice(g).toFixed(2)}</td>
+      <td style="text-align:right;font-weight:600">$${gmLineTotal(g).toFixed(2)}</td>
+      <td><button class="del-btn" onclick="deleteGMItem('${g.id}')">✕</button></td>
+    </tr>`).join('');
+    return `
+      <div style="margin-bottom:20px">
+        <div class="section-title" style="font-size:14px">${cat}
+          <span style="font-weight:700;color:var(--text)">${fmt$(gmCatTotal(crop,cat))}/ha</span>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Item</th><th style="text-align:right">Price $</th><th style="text-align:right">Pack size</th><th>Unit</th><th style="text-align:right">Rate/ha</th><th style="text-align:right">$/unit</th><th style="text-align:right">$/ha</th><th></th></tr></thead>
+            <tbody>${rows || `<tr><td colspan="8" style="color:var(--muted);padding:10px">No ${cat.toLowerCase()} lines</td></tr>`}</tbody>
+          </table>
+          <div class="add-row"><button onclick="addGMItem('${cat}')">+ Add ${cat.toLowerCase()} line</button></div>
+        </div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('tab-gm').innerHTML = `
+    <div class="toolbar">
+      <div class="section-title" style="flex:1;border:none;margin:0">Gross Margins
+        <span style="font-size:12px;font-weight:400;color:var(--muted)">crop input costings — source: Cropping plan 27.xlsx</span>
+      </div>
+      <select onchange="gmCropChanged(this.value)" style="font-size:14px;padding:8px 10px">${cropSel}</select>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="label">Total Cost</div>
+        <div class="value">${fmt$(total)}</div>
+        <div class="sub">per ha</div>
+      </div>
+      <div class="card">
+        <div class="label">Budget Yield</div>
+        <div class="value"><input class="num" type="number" value="${yieldKg||''}" onchange="gmYieldChanged(this.value)" style="width:100px;font-size:18px;font-weight:700"></div>
+        <div class="sub">kgDM/ha</div>
+      </div>
+      <div class="card">
+        <div class="label">Cost — DM grown</div>
+        <div class="value">${perGrown !== null ? (perGrown*100).toFixed(1) + 'c' : '—'}</div>
+        <div class="sub">${perGrown !== null ? '$' + perGrown.toFixed(3) + ' per kgDM' : 'set budget yield'}</div>
+      </div>
+      <div class="card">
+        <div class="label">Cost — DM consumed</div>
+        <div class="value" style="color:var(--info)">${perNet !== null ? (perNet*100).toFixed(1) + 'c' : '—'}</div>
+        <div class="sub">${perNet !== null ? '$' + perNet.toFixed(3) + ' per kgDM after ' + waste + '% wastage' : 'set budget yield'}</div>
+      </div>
+    </div>
+
+    ${catTables}
+
+    <div style="margin-top:8px;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--muted)">
+      ${feeds.length
+        ? `This GM sets the default Seed / Chem / Fert / Ops $/ha for <strong>${feeds.join(', ')}</strong> rows in the Crop Plan (applied when a paddock is added or its crop type changed).
+           <button class="btn btn-sm btn-primary" style="margin-left:8px" onclick="applyGMToSeason()">Apply to ${activeYear} rows</button>`
+        : 'This GM is reference-only — no crop type in the Crop Plan currently maps to it.'}
+    </div>`;
+}
+
+function gmCropChanged(crop) { activeGMCrop = crop; renderGM(); }
+
+function updateGMItem(id, field, val) {
+  const g = gmItems.find(x => x.id === id);
+  if (!g) return;
+  g[field] = val;
+  save();
+  renderGM();
+}
+
+function addGMItem(cat) {
+  gmItems.push({ id: uid(), crop: activeGMCrop, category: cat, item:'', price:'', packSize:1, unit:'', ratePerHa:'' });
+  save();
+  renderGM();
+}
+
+function deleteGMItem(id) {
+  gmItems = gmItems.filter(x => x.id !== id);
+  save();
+  renderGM();
+}
+
+function gmYieldChanged(val) {
+  let y = gmItemsFor(activeGMCrop).find(g => g.category === 'Yield');
+  if (!y) {
+    y = { id: uid(), crop: activeGMCrop, category:'Yield', item:'Budget yield', price:'', packSize:1, unit:'kgDM/ha', ratePerHa:'' };
+    gmItems.push(y);
+  }
+  y.price = val;
+  save();
+  renderGM();
+}
+
+function applyGMToSeason() {
+  if (isSeasonClosed()) { alert(activeYear + ' is locked — unlock it in Crop Plan first.'); return; }
+  const feeds = Object.entries(GM_SOURCE).filter(([,v]) => v === activeGMCrop).map(([k]) => k);
+  const targets = yearCrop().filter(c => feeds.includes(c.crop));
+  if (!targets.length) { alert('No ' + feeds.join('/') + ' rows in ' + activeYear + '.'); return; }
+  const d = gmDefaults(feeds[0]);
+  if (!confirm('Update Seed/Chem/Fert/Ops $/ha on ' + targets.length + ' ' + feeds.join('/') + ' row(s) in ' + activeYear + ' to the current GM figures? Yields and wastage are not changed.')) return;
+  targets.forEach(c => { c.seedHA = d.seedHA; c.chemHA = d.chemHA; c.fertHA = d.fertHA; c.opsHA = d.opsHA; });
+  save();
+  logSync('GM costs applied to ' + targets.length + ' row(s) — ' + activeYear);
+  alert('Done — ' + targets.length + ' row(s) updated.');
+}
+
 // -- SETTINGS --
 function renderSettings() {
   document.getElementById('tab-settings').innerHTML = `
@@ -1239,17 +1573,19 @@ function renderSettings() {
       </div>
     </div>
     <div style="margin-top:24px">
-      <div class="section-title" style="font-size:14px;">Gross Margin Templates (defaults when crop type selected)</div>
+      <div class="section-title" style="font-size:14px;">Crop Type Defaults (applied when crop type selected)</div>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 8px">Crops marked <span style="color:var(--info);font-weight:700">GM</span> are driven live by the Gross Margins tab. The rest use static defaults.</p>
       <div class="tbl-wrap" style="max-width:700px">
         <table>
           <thead><tr><th>Crop</th><th style="text-align:right">Yield kgDM/ha</th><th style="text-align:right">Wastage %</th><th style="text-align:right">Seed $/ha</th><th style="text-align:right">Chem $/ha</th><th style="text-align:right">Fert $/ha</th><th style="text-align:right">Ops $/ha</th><th style="text-align:right">Total $/ha</th><th style="text-align:right">$/kgDM consumed</th></tr></thead>
           <tbody>
             ${CROPS.filter(c=>c!=='Other').map(c => {
-              const g = GM[c];
+              const g = gmDefaults(c);
+              const isGM = !!(GM_SOURCE[c] && gmItemsFor(GM_SOURCE[c]).length);
               const tot = g.seedHA + g.chemHA + g.fertHA + g.opsHA;
               const netYield = g.yieldKgHA * (1 - g.wastage / 100);
               const costPerNet = netYield > 0 ? tot / netYield : 0;
-              return `<tr><td><span class="tag ${CROP_TAG[c]||'tag-other'}">${c}</span></td>
+              return `<tr><td><span class="tag ${CROP_TAG[c]||'tag-other'}">${c}</span>${isGM ? ' <span style="color:var(--info);font-weight:700;font-size:10px">GM</span>' : ''}</td>
                 <td style="text-align:right">${g.yieldKgHA.toLocaleString()}</td>
                 <td style="text-align:right">${g.wastage}%</td>
                 <td style="text-align:right">${g.seedHA}</td>
@@ -1722,6 +2058,7 @@ async function pullFromSheet() {
     if (Array.isArray(data.paddocks)   && data.paddocks.length)   paddocks   = data.paddocks;
     if (Array.isArray(data.soilTests)  && data.soilTests.length)  soilTests  = data.soilTests;
     if (Array.isArray(data.limeEvents) && data.limeEvents.length) limeEvents = data.limeEvents;
+    if (Array.isArray(data.gmItems)    && data.gmItems.length)    gmItems    = data.gmItems;
     if (typeof data.aiNotes === 'string' && data.aiNotes) aiNotes = data.aiNotes;
     lastTs = data.lastModified || 0;
     localStorage.setItem(NS+'lastTs', lastTs);
@@ -1738,7 +2075,7 @@ async function pullFromSheet() {
 async function pushToSheet() {
   if (!settings.scriptUrl || settings.disconnected) { syncPending = false; return; }
   try {
-    const payload = { cropPlan, stockReq, supplements, paddocks, soilTests, limeEvents, aiNotes, clientTs: lastTs };
+    const payload = { cropPlan, stockReq, supplements, paddocks, soilTests, limeEvents, gmItems, aiNotes, clientTs: lastTs };
     const res = await fetch(settings.scriptUrl, { method: 'POST', body: JSON.stringify(payload) });
     const d = await res.json();
     if (d.error) throw new Error(d.error);
