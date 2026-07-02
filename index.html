@@ -233,7 +233,7 @@ td input.num { text-align: right; }
 
 <script>
 // -- CONSTANTS --
-const APP_VER = '2.9.2';
+const APP_VER = '2.9.3';
 const NS = 'crop2_';
 const YEAR = '2026/27';
 const YEAR_PAT = /^\d{4}\/\d{2}$/;
@@ -952,11 +952,11 @@ function renderStock() {
         <tbody>
           <tr class="section-row"><td colspan="9">Deer</td></tr>
           ${deer.map(r => stockRow(r)).join('') || '<tr><td colspan="9" style="color:var(--muted);padding:12px">No deer classes — add above</td></tr>'}
-          <tr class="total-row"><td colspan="7">Deer total</td><td style="text-align:right">${fmtDM(deerDM)}</td><td></td></tr>
+          <tr class="total-row"><td colspan="7">Deer total</td><td style="text-align:right" id="sr-deer-tot">${fmtDM(deerDM)}</td><td></td></tr>
           <tr class="section-row"><td colspan="9">Cattle</td></tr>
           ${cattle.map(r => stockRow(r)).join('') || '<tr><td colspan="9" style="color:var(--muted);padding:12px">No cattle classes — add above</td></tr>'}
-          <tr class="total-row"><td colspan="7">Cattle total</td><td style="text-align:right">${fmtDM(cattleDM)}</td><td></td></tr>
-          <tr class="total-row"><td colspan="7">Grand total</td><td style="text-align:right">${fmtDM(totalDemand())}</td><td></td></tr>
+          <tr class="total-row"><td colspan="7">Cattle total</td><td style="text-align:right" id="sr-cattle-tot">${fmtDM(cattleDM)}</td><td></td></tr>
+          <tr class="total-row"><td colspan="7">Grand total</td><td style="text-align:right" id="sr-grand-tot">${fmtDM(totalDemand())}</td><td></td></tr>
         </tbody>
       </table>
       <div class="add-row">
@@ -1000,8 +1000,12 @@ function updateStockCalc(id, field, val) {
   if (!r) return;
   r[field] = val;
   const total = n(r.headCurr) * n(r.kgDMday) * n(r.days);
-  const el = document.getElementById('sr-total-' + id);
-  if (el) el.textContent = fmtDM(total);
+  const set = (i, v) => { const el = document.getElementById(i); if (el) el.textContent = v; };
+  set('sr-total-' + id, fmtDM(total));
+  const sum = rows => rows.reduce((s,x) => s + n(x.headCurr)*n(x.kgDMday)*n(x.days), 0);
+  set('sr-deer-tot',   fmtDM(sum(yearStock().filter(x => x.species === 'Deer'))));
+  set('sr-cattle-tot', fmtDM(sum(yearStock().filter(x => x.species === 'Cattle'))));
+  set('sr-grand-tot',  fmtDM(totalDemand()));
   save();
 }
 
@@ -1029,7 +1033,7 @@ function renderFeed() {
       <td><select onchange="updateSupp('${x.id}','type',this.value)">${suppOpts.replace(`>${x.type||'Silage'}<`,` selected>${x.type||'Silage'}<`)}</select></td>
       <td><input class="num" type="number" value="${x.kgDM||''}" onchange="updateSupp('${x.id}','kgDM',this.value)" style="width:90px"></td>
       <td><input class="num" type="number" step="0.001" value="${x.costPerKgDM||''}" onchange="updateSupp('${x.id}','costPerKgDM',this.value)" style="width:80px" placeholder="$/kgDM"></td>
-      <td style="text-align:right;font-weight:600">${fmt$(cost)}</td>
+      <td style="text-align:right;font-weight:600" id="xr-cost-${x.id}">${fmt$(cost)}</td>
       <td><button class="del-btn" onclick="deleteSupp('${x.id}')">x</button></td>
     </tr>`;
   }).join('');
@@ -1076,16 +1080,16 @@ function renderFeed() {
       </div>
       <div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:2px">SUPPLY</div>
-        <div style="font-size:22px;font-weight:700">${fmtT(sup)}</div>
-        <div style="font-size:10px;color:var(--muted)">crops ${fmtT(cSup)} · supps ${fmtT(sSup)} · pasture ${fmtT(pSup)}</div>
+        <div style="font-size:22px;font-weight:700" id="fb-supply">${fmtT(sup)}</div>
+        <div style="font-size:10px;color:var(--muted)" id="fb-brk">crops ${fmtT(cSup)} · supps ${fmtT(sSup)} · pasture ${fmtT(pSup)}</div>
       </div>
       <div class="fb-bar-wrap">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Supply covers ${pct}% of demand</div>
-        <div class="fb-bar"><div class="fb-bar-fill ${pct>=100?'':'over'}" style="width:${pct}%"></div></div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px" id="fb-pct">Supply covers ${pct}% of demand</div>
+        <div class="fb-bar"><div class="fb-bar-fill ${pct>=100?'':'over'}" id="fb-bar-fill" style="width:${pct}%"></div></div>
       </div>
       <div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:2px">${sur >= 0 ? 'SURPLUS' : 'DEFICIT'}</div>
-        <div style="font-size:22px;font-weight:700;color:${sur>=0?'var(--ok)':'var(--danger)'}">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:2px" id="fb-sur-label">${sur >= 0 ? 'SURPLUS' : 'DEFICIT'}</div>
+        <div style="font-size:22px;font-weight:700;color:${sur>=0?'var(--ok)':'var(--danger)'}" id="fb-sur">
           ${sur >= 0 ? '+' : ''}${fmtT(sur)}
         </div>
       </div>
@@ -1118,7 +1122,7 @@ function renderFeed() {
             <thead><tr><th>Name</th><th>Type</th><th style="text-align:right">kgDM</th><th style="text-align:right">$/kgDM</th><th style="text-align:right">Cost</th><th></th></tr></thead>
             <tbody>
               ${suppRows || '<tr><td colspan="6" style="color:var(--muted);padding:12px">No supplements entered</td></tr>'}
-              <tr class="total-row"><td colspan="2">Total supplements</td><td style="text-align:right">${fmtDM(sSup)}</td><td></td><td style="text-align:right">${fmt$(totalSuppCost())}</td><td></td></tr>
+              <tr class="total-row"><td colspan="2">Total supplements</td><td style="text-align:right" id="fb-supp-tot">${fmtDM(sSup)}</td><td></td><td style="text-align:right" id="fb-supp-cost">${fmt$(totalSuppCost())}</td><td></td></tr>
             </tbody>
           </table>
           <div class="add-row"><button onclick="addSupp()">+ Add supplement / silage stack</button></div>
@@ -1173,7 +1177,35 @@ function addSupp() {
 
 function updateSupp(id, field, val) {
   const x = supplements.find(s => s.id === id);
-  if (x) { x[field] = val; save(); }
+  if (!x) return;
+  x[field] = val;
+  save();
+  const cell = document.getElementById('xr-cost-' + id);
+  if (cell) cell.textContent = fmt$(n(x.kgDM) * n(x.costPerKgDM));
+  refreshFeedTotals();
+}
+
+// Recompute the Feed Budget summary bar and supplement totals in place —
+// keeps focus while tabbing between inputs (full re-render would drop it)
+function refreshFeedTotals() {
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  const dem  = totalDemand();
+  const cSup = cropSupply();
+  const sSup = suppSupply();
+  const pSup = pastureSupply();
+  const sup  = cSup + sSup + pSup;
+  const sur  = sup - dem;
+  const pct  = dem > 0 ? Math.min(110, Math.round(sup/dem*100)) : 0;
+  set('fb-supply', fmtT(sup));
+  set('fb-brk', `crops ${fmtT(cSup)} · supps ${fmtT(sSup)} · pasture ${fmtT(pSup)}`);
+  set('fb-pct', `Supply covers ${pct}% of demand`);
+  set('fb-sur-label', sur >= 0 ? 'SURPLUS' : 'DEFICIT');
+  set('fb-supp-tot', fmtDM(sSup));
+  set('fb-supp-cost', fmt$(totalSuppCost()));
+  const bar = document.getElementById('fb-bar-fill');
+  if (bar) { bar.style.width = pct + '%'; bar.className = 'fb-bar-fill ' + (pct >= 100 ? '' : 'over'); }
+  const surEl = document.getElementById('fb-sur');
+  if (surEl) { surEl.textContent = (sur >= 0 ? '+' : '') + fmtT(sur); surEl.style.color = sur >= 0 ? 'var(--ok)' : 'var(--danger)'; }
 }
 
 function deleteSupp(id) {
@@ -1193,10 +1225,10 @@ function renderPasture() {
 
   document.getElementById('tab-pasture').innerHTML = `
     <div class="cards">
-      <div class="card"><div class="label">Pasture DM — Winter</div><div class="value">${fmtT(tot)}</div><div class="sub">15 May – 15 Sep</div></div>
-      <div class="card"><div class="label">Area</div><div class="value">${totHa.toFixed(0)}</div><div class="sub">ha in winter pasture</div></div>
-      <div class="card"><div class="label">Share of Supply</div><div class="value">${share}%</div><div class="sub">of total winter supply</div></div>
-      <div class="card"><div class="label">Pasture Cost</div><div class="value">${fmt$(pastureCost())}</div><div class="sub">where $/kgDM set</div></div>
+      <div class="card"><div class="label">Pasture DM — Winter</div><div class="value" id="pa-sum-dm">${fmtT(tot)}</div><div class="sub">15 May – 15 Sep</div></div>
+      <div class="card"><div class="label">Area</div><div class="value" id="pa-sum-ha">${totHa.toFixed(0)}</div><div class="sub">ha in winter pasture</div></div>
+      <div class="card"><div class="label">Share of Supply</div><div class="value" id="pa-sum-share">${share}%</div><div class="sub">of total winter supply</div></div>
+      <div class="card"><div class="label">Pasture Cost</div><div class="value" id="pa-sum-cost">${fmt$(pastureCost())}</div><div class="sub">where $/kgDM set</div></div>
     </div>
     <div class="toolbar">
       <div class="section-title" style="flex:1;border:none;margin:0">Winter Pasture Supply — ${activeYear}</div>
@@ -1219,7 +1251,7 @@ function renderPasture() {
         </tr></thead>
         <tbody>
           ${rows || '<tr><td colspan="14" style="color:var(--muted);padding:16px;text-align:center">No pasture blocks — add one or seed the winter baseline</td></tr>'}
-          <tr class="total-row"><td colspan="12">Total winter pasture</td><td style="text-align:right">${fmtDM(tot)}</td><td></td></tr>
+          <tr class="total-row"><td colspan="12">Total winter pasture</td><td style="text-align:right" id="pa-grand-tot">${fmtDM(tot)}</td><td></td></tr>
         </tbody>
       </table>
       <div class="add-row"><button onclick="addPastureRow()">+ Add pasture block</button></div>
@@ -1256,8 +1288,15 @@ function updatePasture(id, field, val) {
   if (!p) return;
   p[field] = val;
   save();
-  const el = document.getElementById('pa-tot-' + id);
-  if (el) el.textContent = fmtDM(pastureRowDM(p));
+  const set = (i, v) => { const el = document.getElementById(i); if (el) el.textContent = v; };
+  set('pa-tot-' + id, fmtDM(pastureRowDM(p)));
+  const tot = pastureSupply();
+  const sup = totalSupply();
+  set('pa-grand-tot', fmtDM(tot));
+  set('pa-sum-dm', fmtT(tot));
+  set('pa-sum-ha', yearPasture().reduce((s,x) => s + n(x.ha), 0).toFixed(0));
+  set('pa-sum-share', (sup > 0 ? Math.round(tot/sup*100) : 0) + '%');
+  set('pa-sum-cost', fmt$(pastureCost()));
 }
 
 function deletePasture(id) {
