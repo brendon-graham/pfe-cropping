@@ -233,7 +233,7 @@ td input.num { text-align: right; }
 
 <script>
 // -- CONSTANTS --
-const APP_VER = '2.9.3';
+const APP_VER = '2.9.4';
 const NS = 'crop2_';
 const YEAR = '2026/27';
 const YEAR_PAT = /^\d{4}\/\d{2}$/;
@@ -470,6 +470,7 @@ let settings    = { scriptUrl: '', disconnected: false };
 let activeYear  = YEAR;
 let lastTs      = 0;
 let syncPending = false;
+let pushAgain   = false;   // edit landed while a push was already scheduled/in flight
 let pollTimer   = null;
 let activeTab   = 'dashboard';
 
@@ -511,7 +512,10 @@ function updateYearSel() {
 }
 
 // -- PERSISTENCE --
-function save() {
+// saveLocal = persist only. save = persist + push. Pulled data must use saveLocal —
+// pull-then-push loops between devices bump the sheet timestamp constantly and get
+// genuine user edits rejected as stale (the "my entry vanished" bug).
+function saveLocal() {
   localStorage.setItem(NS+'crop', JSON.stringify(cropPlan));
   localStorage.setItem(NS+'stock', JSON.stringify(stockReq));
   localStorage.setItem(NS+'supps', JSON.stringify(supplements));
@@ -522,6 +526,10 @@ function save() {
   localStorage.setItem(NS+'gmitems', JSON.stringify(gmItems));
   localStorage.setItem(NS+'ai', aiNotes);
   localStorage.setItem(NS+'settings', JSON.stringify(settings));
+}
+
+function save() {
+  saveLocal();
   schedulePush();
 }
 
@@ -2257,10 +2265,16 @@ function logSync(msg) {
 }
 
 function schedulePush() {
-  if (!syncPending && settings.scriptUrl && !settings.disconnected) {
-    syncPending = true;
-    setTimeout(pushToSheet, 1500);
-  }
+  if (!settings.scriptUrl || settings.disconnected) return;
+  if (syncPending) { pushAgain = true; return; }
+  syncPending = true;
+  setTimeout(pushToSheet, 1500);
+}
+
+// True while the user has a field focused — a pull-render now would wipe their typing
+function isEditing() {
+  const a = document.activeElement;
+  return !!a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT');
 }
 
 async function pullFromSheet() {
@@ -2299,7 +2313,7 @@ async function pullFromSheet() {
     if (typeof data.aiNotes === 'string' && data.aiNotes) aiNotes = data.aiNotes;
     lastTs = data.lastModified || 0;
     localStorage.setItem(NS+'lastTs', lastTs);
-    save();
+    saveLocal();
     setSyncPill('ok', 'Synced');
     logSync('Pulled ' + new Date().toLocaleTimeString('en-NZ'));
   } catch(e) {
@@ -2317,7 +2331,7 @@ async function pushToSheet() {
     const d = await res.json();
     if (d.error) throw new Error(d.error);
     if (d.status === 'stale') {
-      logSync('Push rejected — Sheets has newer data, pulling');
+      logSync('Conflict: another device saved first — pulled its data. Re-check your last entry.');
       syncPending = false;
       await pullFromSheet();
       return;
@@ -2331,6 +2345,7 @@ async function pushToSheet() {
     logSync('Push failed: ' + e.message);
   }
   syncPending = false;
+  if (pushAgain) { pushAgain = false; schedulePush(); }
 }
 
 async function manualSync() {
@@ -2342,10 +2357,12 @@ function startPoll() {
   clearInterval(pollTimer);
   if (!settings.scriptUrl || settings.disconnected) return;
   pollTimer = setInterval(async () => {
-    if (syncPending) return;
+    if (syncPending || isEditing()) return;
     try {
       const res = await fetch(settings.scriptUrl + '?action=pull', { cache: 'no-store' });
       const d = await res.json();
+      // re-check after the fetch — an edit may have started while it was in flight
+      if (syncPending || isEditing()) return;
       if ((d.lastModified || 0) > lastTs) await pullFromSheet();
     } catch(e) {}
   }, 30000);
