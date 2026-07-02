@@ -233,7 +233,7 @@ td input.num { text-align: right; }
 
 <script>
 // -- CONSTANTS --
-const APP_VER = '2.9';
+const APP_VER = '2.9.1';
 const NS = 'crop2_';
 const YEAR = '2026/27';
 const YEAR_PAT = /^\d{4}\/\d{2}$/;
@@ -260,16 +260,16 @@ const CROP_TAG = {
   'Maize':'tag-maize','Rape':'tag-rape','Triticale':'tag-triticale','Clover':'tag-clover','Other':'tag-other'
 };
 
-// Which GM sheet feeds each crop type's cost defaults. Unmapped types (Lifting Beet,
-// Triticale, Other) fall back to the static GM constants above.
+// Which GM sheet feeds each crop type's cost defaults. Unmapped types (Triticale, Other)
+// fall back to the static GM constants above.
 const GM_SOURCE = {
   'Kale':'Kale', 'Swedes':'Swedes', 'Fodder Beet':'Fodder Beet', 'Maize':'Maize',
-  'Rape':'Winterstar', 'Clover':'Italian Clover',
+  'Lifting Beet':'Sugar Beet', 'Rape':'Winterstar', 'Clover':'Italian Clover',
 };
 
-const GM_CROPS = ['Kale','Swedes','Fodder Beet','Maize','Winterstar','Italian Clover','Red Clover','Lucerne'];
+const GM_CROPS = ['Kale','Swedes','Fodder Beet','Sugar Beet','Maize','Winterstar','Italian Clover','Red Clover','Lucerne'];
 
-const GM_CROP_WASTE = { 'Kale':25, 'Swedes':20, 'Fodder Beet':10, 'Maize':15, 'Winterstar':25, 'Italian Clover':15, 'Red Clover':15, 'Lucerne':15 };
+const GM_CROP_WASTE = { 'Kale':25, 'Swedes':20, 'Fodder Beet':10, 'Sugar Beet':12, 'Maize':15, 'Winterstar':25, 'Italian Clover':15, 'Red Clover':15, 'Lucerne':15 };
 
 // Source: Cropping plan 27.xlsx GM tabs (Kale, Swedes, Beet, Maize, Red Clover,
 // Italian Clover, Lucerne, Winterstar GM), transcribed 2 Jul 2026.
@@ -417,6 +417,31 @@ const DEFAULT_GM_ITEMS = [
   ['Lucerne','Fertiliser','Boron',2800,1000,'kg',10],
   ['Lucerne','Fertiliser','Molybdenum',3800,1000,'kg',2],
   ['Lucerne','Fertiliser','Super 10',500,1000,'kg',300],
+  // Sugar Beet (lifting) — 25/26 actuals from Peel Forest Estate Crop Costs 2025-26.xlsx
+  ['Sugar Beet','Yield','Budget yield',16000,1,'kgDM/ha',''],
+  ['Sugar Beet','Operations','Drilling',260,1,'ha',1],
+  ['Sugar Beet','Operations','Cultivation',160,1,'ha',2],
+  ['Sugar Beet','Operations','Spray Applications',38,1,'ha',5],
+  ['Sugar Beet','Operations','Fertiliser Applications',15,1,'ha',3],
+  ['Sugar Beet','Seed','Smart Sugar Beet Seed',1376,1,'ha',1],
+  ['Sugar Beet','Chemical','Deal 510',6400,1000,'lt',5],
+  ['Sugar Beet','Chemical','Hammer Force',1200,4,'lt',0.09],
+  ['Sugar Beet','Chemical','Satur8',592,20,'lt',0.25],
+  ['Sugar Beet','Chemical','Nortron',616,20,'lt',2],
+  ['Sugar Beet','Chemical','Magister',527,5,'lt',0.15],
+  ['Sugar Beet','Chemical','Pyrinex',272,20,'lt',1.2],
+  ['Sugar Beet','Chemical','Backrow',168,5,'lt',0.4],
+  ['Sugar Beet','Chemical','Betanal Forte',519,10,'lt',1],
+  ['Sugar Beet','Chemical','Boron 150',140,10,'lt',1],
+  ['Sugar Beet','Chemical','Ampligo',2100,5,'lt',0.1],
+  ['Sugar Beet','Chemical','Sivanto Prime',1086,10,'lt',0.375],
+  ['Sugar Beet','Chemical','Revylution',556,10,'lt',1],
+  ['Sugar Beet','Chemical','Amistar',1026,20,'lt',0.5],
+  ['Sugar Beet','Chemical','Brassitrel Pro',224,10,'lt',2],
+  ['Sugar Beet','Fertiliser','DAP',1560,1000,'kg',150],
+  ['Sugar Beet','Fertiliser','Ammo 31',900,1000,'kg',230],
+  ['Sugar Beet','Fertiliser','Borate 46',3000,1000,'kg',10],
+  ['Sugar Beet','Fertiliser','SustaiN',920,1000,'kg',180],
   ['Winterstar','Yield','Budget yield',8000,1,'kgDM/ha',''],
   ['Winterstar','Operations','Applications',30.5,1,'ha',2],
   ['Winterstar','Operations','Spreading',15,1,'ha',2],
