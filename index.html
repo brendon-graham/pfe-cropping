@@ -233,7 +233,7 @@ td input.num { text-align: right; }
 
 <script>
 // -- CONSTANTS --
-const APP_VER = '2.9.1';
+const APP_VER = '2.9.2';
 const NS = 'crop2_';
 const YEAR = '2026/27';
 const YEAR_PAT = /^\d{4}\/\d{2}$/;
@@ -269,7 +269,6 @@ const GM_SOURCE = {
 
 const GM_CROPS = ['Kale','Swedes','Fodder Beet','Sugar Beet','Maize','Winterstar','Italian Clover','Red Clover','Lucerne'];
 
-const GM_CROP_WASTE = { 'Kale':25, 'Swedes':20, 'Fodder Beet':10, 'Sugar Beet':12, 'Maize':15, 'Winterstar':25, 'Italian Clover':15, 'Red Clover':15, 'Lucerne':15 };
 
 // Source: Cropping plan 27.xlsx GM tabs (Kale, Swedes, Beet, Maize, Red Clover,
 // Italian Clover, Lucerne, Winterstar GM), transcribed 2 Jul 2026.
@@ -582,6 +581,9 @@ function netDM(c)           { return grossDM(c) * wasteFactor(c); }
 function hasActual(c)       { return c.actualYieldKgHA !== '' && c.actualYieldKgHA !== null && c.actualYieldKgHA !== undefined; }
 function actualNetDM(c)     { return hasActual(c) ? n(c.ha) * n(c.actualYieldKgHA) * wasteFactor(c) : null; }
 function effectiveNetDM(c)  { const a = actualNetDM(c); return a !== null ? a : netDM(c); }
+// Grown (pre-wastage) DM — all financial $/kgDM uses grown; wastage only applies to feed supply
+function actualGrossDM(c)    { return hasActual(c) ? n(c.ha) * n(c.actualYieldKgHA) : null; }
+function effectiveGrossDM(c) { const a = actualGrossDM(c); return a !== null ? a : grossDM(c); }
 function rowCost(c)         { return n(c.ha) * (n(c.seedHA) + n(c.chemHA) + n(c.fertHA) + n(c.opsHA)); }
 function totalDemand()      { return yearStock().reduce((s,r) => s + n(r.headCurr)*n(r.kgDMday)*n(r.days), 0); }
 // winterUse: only 'Winter feed' rows count toward winter supply. 'To silage' DM is already
@@ -592,7 +594,7 @@ function countsWinter(c)    { return !c.winterUse || c.winterUse === 'Winter fee
 function winterCrops()      { return yearCrop().filter(countsWinter); }
 function cropSupply()       { return winterCrops().reduce((s,c) => s + effectiveNetDM(c), 0); }
 function budgetCropSupply() { return winterCrops().reduce((s,c) => s + netDM(c), 0); }
-function allCropEffDM()     { return yearCrop().reduce((s,c)  => s + effectiveNetDM(c), 0); }
+function allCropGrownDM()   { return yearCrop().reduce((s,c)  => s + effectiveGrossDM(c), 0); }
 function anyActuals()       { return yearCrop().some(c => hasActual(c)); }
 function suppSupply()    { return yearSupps().reduce((s,x) => s + n(x.kgDM), 0); }
 // Pasture: total = ha × (opening − residual + Σ growth×days) less wastage, or directKgDM as entered
@@ -1292,7 +1294,7 @@ function renderFinancial() {
     byType[c.crop].chem  += h * n(c.chemHA);
     byType[c.crop].fert  += h * n(c.fertHA);
     byType[c.crop].ops   += h * n(c.opsHA);
-    byType[c.crop].effDM += effectiveNetDM(c);
+    byType[c.crop].effDM += effectiveGrossDM(c);
   });
 
   const cropRows = Object.entries(byType).map(([crop, v]) => {
@@ -1322,7 +1324,7 @@ function renderFinancial() {
   }).join('') || '<tr><td colspan="4" style="color:var(--muted);padding:12px">No pasture blocks entered</td></tr>';
 
   const grandTotal = totalCropCost() + totalSuppCost() + pastureCost();
-  const effTotal   = allCropEffDM();
+  const effTotal   = allCropGrownDM();
 
   document.getElementById('tab-financial').innerHTML = `
     <div class="cards" style="max-width:900px">
@@ -1335,7 +1337,7 @@ function renderFinancial() {
     <div class="section-title">Crop Establishment Costs — ${activeYear}</div>
     <div class="tbl-wrap" style="margin-bottom:24px">
       <table>
-        <thead><tr><th>Crop</th><th style="text-align:right">Ha</th><th style="text-align:right">Seed</th><th style="text-align:right">Chem</th><th style="text-align:right">Fert</th><th style="text-align:right">Ops</th><th style="text-align:right">Total</th><th style="text-align:right">$/ha</th><th style="text-align:right">$/kgDM consumed${anyActuals() ? ' <span style="font-size:10px;font-weight:400">(actuals used where recorded)</span>' : ''}</th></tr></thead>
+        <thead><tr><th>Crop</th><th style="text-align:right">Ha</th><th style="text-align:right">Seed</th><th style="text-align:right">Chem</th><th style="text-align:right">Fert</th><th style="text-align:right">Ops</th><th style="text-align:right">Total</th><th style="text-align:right">$/ha</th><th style="text-align:right">$/kgDM grown${anyActuals() ? ' <span style="font-size:10px;font-weight:400">(actuals used where recorded)</span>' : ''}</th></tr></thead>
         <tbody>
           ${cropRows}
           <tr class="total-row">
@@ -1455,9 +1457,9 @@ function renderCropEfficiency() {
       if (!rows.length) return;
       const ha     = rows.reduce((s,c) => s + n(c.ha), 0);
       const cost   = rows.reduce((s,c) => s + rowCost(c), 0);
-      const budDM  = rows.reduce((s,c) => s + netDM(c), 0);
+      const budDM  = rows.reduce((s,c) => s + grossDM(c), 0);
       const hasAct = rows.some(c => hasActual(c));
-      const actDM  = hasAct ? rows.reduce((s,c) => s + effectiveNetDM(c), 0) : null;
+      const actDM  = hasAct ? rows.reduce((s,c) => s + effectiveGrossDM(c), 0) : null;
       matrix[crop][y] = { ha, cost, budDM, actDM };
     });
   });
@@ -1549,7 +1551,7 @@ function renderCropEfficiency() {
   return `
     <div style="margin-top:32px">
       <div class="section-title">Crop Efficiency — All Seasons
-        <span style="font-size:12px;font-weight:400;color:var(--muted)">$/kgDM consumed (after wastage)</span>
+        <span style="font-size:12px;font-weight:400;color:var(--muted)">$/kgDM grown (wastage not applied — feed budget only)</span>
       </div>
       <p style="font-size:12px;color:var(--muted);margin:0 0 16px">
         <span style="color:var(--ok);font-weight:700">Green &lt;$0.13</span> &nbsp;·&nbsp;
@@ -1626,10 +1628,7 @@ function renderGM() {
   const items = gmItemsFor(crop);
   const yieldKg = gmYieldOf(crop);
   const total = gmTotalHa(crop);
-  const waste = GM_CROP_WASTE[crop] ?? 15;
-  const netYield = yieldKg * (1 - waste/100);
   const perGrown = yieldKg > 0 ? total / yieldKg : null;
-  const perNet   = netYield > 0 ? total / netYield : null;
   const cropSel  = GM_CROPS.map(c => `<option${c===crop?' selected':''}>${c}</option>`).join('');
   const feeds    = Object.entries(GM_SOURCE).filter(([,v]) => v === crop).map(([k]) => k);
 
@@ -1680,14 +1679,9 @@ function renderGM() {
         <div class="sub">kgDM/ha</div>
       </div>
       <div class="card">
-        <div class="label">Cost — DM grown</div>
+        <div class="label">Cost per kgDM grown</div>
         <div class="value">${perGrown !== null ? (perGrown*100).toFixed(1) + 'c' : '—'}</div>
-        <div class="sub">${perGrown !== null ? '$' + perGrown.toFixed(3) + ' per kgDM' : 'set budget yield'}</div>
-      </div>
-      <div class="card">
-        <div class="label">Cost — DM consumed</div>
-        <div class="value" style="color:var(--info)">${perNet !== null ? (perNet*100).toFixed(1) + 'c' : '—'}</div>
-        <div class="sub">${perNet !== null ? '$' + perNet.toFixed(3) + ' per kgDM after ' + waste + '% wastage' : 'set budget yield'}</div>
+        <div class="sub">${perGrown !== null ? '$' + perGrown.toFixed(3) + ' per kgDM — wastage applies to feed budget only' : 'set budget yield'}</div>
       </div>
     </div>
 
@@ -1777,14 +1771,13 @@ function renderSettings() {
       <p style="font-size:12px;color:var(--muted);margin:0 0 8px">Crops marked <span style="color:var(--info);font-weight:700">GM</span> are driven live by the Gross Margins tab. The rest use static defaults.</p>
       <div class="tbl-wrap" style="max-width:700px">
         <table>
-          <thead><tr><th>Crop</th><th style="text-align:right">Yield kgDM/ha</th><th style="text-align:right">Wastage %</th><th style="text-align:right">Seed $/ha</th><th style="text-align:right">Chem $/ha</th><th style="text-align:right">Fert $/ha</th><th style="text-align:right">Ops $/ha</th><th style="text-align:right">Total $/ha</th><th style="text-align:right">$/kgDM consumed</th></tr></thead>
+          <thead><tr><th>Crop</th><th style="text-align:right">Yield kgDM/ha</th><th style="text-align:right">Wastage %</th><th style="text-align:right">Seed $/ha</th><th style="text-align:right">Chem $/ha</th><th style="text-align:right">Fert $/ha</th><th style="text-align:right">Ops $/ha</th><th style="text-align:right">Total $/ha</th><th style="text-align:right">$/kgDM grown</th></tr></thead>
           <tbody>
             ${CROPS.filter(c=>c!=='Other').map(c => {
               const g = gmDefaults(c);
               const isGM = !!(GM_SOURCE[c] && gmItemsFor(GM_SOURCE[c]).length);
               const tot = g.seedHA + g.chemHA + g.fertHA + g.opsHA;
-              const netYield = g.yieldKgHA * (1 - g.wastage / 100);
-              const costPerNet = netYield > 0 ? tot / netYield : 0;
+              const costPerNet = g.yieldKgHA > 0 ? tot / g.yieldKgHA : 0;
               return `<tr><td><span class="tag ${CROP_TAG[c]||'tag-other'}">${c}</span>${isGM ? ' <span style="color:var(--info);font-weight:700;font-size:10px">GM</span>' : ''}</td>
                 <td style="text-align:right">${g.yieldKgHA.toLocaleString()}</td>
                 <td style="text-align:right">${g.wastage}%</td>
@@ -2040,7 +2033,7 @@ function renderPaddockDetail(id) {
       <td style="text-align:right">${actCell}</td>
       <td style="text-align:right">${fmtT(nDM)}</td>
       <td style="text-align:right">${fmt$(cost)}</td>
-      <td style="text-align:right;color:var(--info)">${nDM > 0 ? '$' + (cost/nDM).toFixed(3) + '/kgDM' : '—'}</td>
+      <td style="text-align:right;color:var(--info)">${effectiveGrossDM(c) > 0 ? '$' + (cost/effectiveGrossDM(c)).toFixed(3) + '/kgDM' : '—'}</td>
       <td style="font-size:11px;color:var(--muted)">${c.notes||''}</td>
     </tr>`;
   }).join('') : `<tr><td colspan="9" class="no-data" style="padding:10px 0">No crop history for this paddock</td></tr>`;
