@@ -229,7 +229,6 @@ td input.num { text-align: right; }
   <button onclick="showTab('financial')">Financial</button>
   <button onclick="showTab('gm')">Gross Margins</button>
   <button onclick="showTab('history')">All Seasons</button>
-  <button onclick="showTab('benchmark')">Benchmark</button>
   <button onclick="showTab('ai')">AI Advisor</button>
   <button onclick="showTab('settings')">Settings</button>
 </nav>
@@ -245,7 +244,6 @@ td input.num { text-align: right; }
   <div id="tab-financial" class="tab"></div>
   <div id="tab-gm" class="tab"></div>
   <div id="tab-history" class="tab"></div>
-  <div id="tab-benchmark" class="tab"></div>
   <div id="tab-ai" class="tab"></div>
   <div id="tab-settings" class="tab"></div>
 </main>
@@ -283,7 +281,7 @@ td input.num { text-align: right; }
 
 <script>
 // -- CONSTANTS --
-const APP_VER = '3.1';
+const APP_VER = '3.0';
 const NS = 'crop2_';
 const YEAR = '2026/27';
 const YEAR_PAT = /^\d{4}\/\d{2}$/;
@@ -732,7 +730,7 @@ function showTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
-  const idx = ['dashboard','crop','paddocks','stock','feed','pasture','regrass','financial','gm','history','benchmark','ai','settings'].indexOf(name);
+  const idx = ['dashboard','crop','paddocks','stock','feed','pasture','regrass','financial','gm','history','ai','settings'].indexOf(name);
   document.querySelectorAll('nav button')[idx].classList.add('active');
   renderTab(name);
 }
@@ -748,7 +746,6 @@ function renderTab(name) {
   if (name === 'financial')  renderFinancial();
   if (name === 'gm')         renderGM();
   if (name === 'history')    renderHistory();
-  if (name === 'benchmark')  renderBenchmark();
   if (name === 'ai')         renderAI();
   if (name === 'settings')   renderSettings();
 }
@@ -1864,199 +1861,6 @@ function renderCropEfficiency() {
           <tbody>${rankedRows}</tbody>
         </table>
       </div>
-    </div>`;
-}
-
-// -- BENCHMARK (all seasons costed at the most recent season's rates) --
-function benchmarkYear() { return getYears()[0]; }
-
-// $/ha by crop type — ha-weighted average from the benchmark season's rows.
-// Crop types absent from that season fall back to current GM defaults.
-function benchCropRates() {
-  const by = {};
-  const by_ = benchmarkYear();
-  cropPlan.filter(c => (c.year || YEAR) === by_).forEach(c => {
-    if (!by[c.crop]) by[c.crop] = { ha:0, cost:0 };
-    by[c.crop].ha   += n(c.ha);
-    by[c.crop].cost += rowCost(c);
-  });
-  const rates = {};
-  Object.entries(by).forEach(([crop, v]) => { if (v.ha > 0) rates[crop] = v.cost / v.ha; });
-  return rates;
-}
-
-function benchRateFor(crop, rates) {
-  if (rates[crop] !== undefined) return { rate: rates[crop], src: benchmarkYear() };
-  const g = gmDefaults(crop);
-  return { rate: g.seedHA + g.chemHA + g.fertHA + g.opsHA, src: 'GM default' };
-}
-
-// $/kgDM by supplement type — DM-weighted average from the benchmark season.
-// Types absent from that season keep their own recorded rate.
-function benchSuppRates() {
-  const by = {};
-  const by_ = benchmarkYear();
-  supplements.filter(x => (x.year || YEAR) === by_).forEach(x => {
-    const t = (x.type || '').trim() || 'Supplement';
-    if (!by[t]) by[t] = { kg:0, cost:0 };
-    by[t].kg   += n(x.kgDM);
-    by[t].cost += n(x.kgDM) * n(x.costPerKgDM);
-  });
-  const rates = {};
-  Object.entries(by).forEach(([t, v]) => { if (v.kg > 0) rates[t] = v.cost / v.kg; });
-  return rates;
-}
-
-function renderBenchmark() {
-  const yrs = getYears();
-  const bYear = benchmarkYear();
-  const cRates = benchCropRates();
-  const sRates = benchSuppRates();
-
-  // Rate card — what every season is being costed at
-  const cropRateRows = [...new Set(cropPlan.map(c => c.crop))].sort().map(crop => {
-    const r = benchRateFor(crop, cRates);
-    return `<tr><td><span class="tag ${CROP_TAG[crop]||'tag-other'}">${crop}</span></td>
-      <td style="text-align:right;font-weight:600">${fmt$(r.rate)}/ha</td>
-      <td style="font-size:11px;color:var(--muted)">${r.src === bYear ? bYear + ' plan (ha-weighted)' : 'GM default — no ' + crop + ' in ' + bYear}</td></tr>`;
-  }).join('');
-  const suppRateRows = Object.entries(sRates).map(([t, r]) =>
-    `<tr><td>${t}</td><td style="text-align:right;font-weight:600">$${r.toFixed(3)}/kgDM</td><td style="font-size:11px;color:var(--muted)">${bYear} inventory (DM-weighted)</td></tr>`
-  ).join('') || '<tr><td colspan="3" style="color:var(--muted);padding:10px">No supplements in ' + bYear + '</td></tr>';
-
-  // Season comparison at benchmark rates
-  const rows = yrs.map(y => {
-    const cp = cropPlan.filter(c    => (c.year || YEAR) === y);
-    const su = supplements.filter(x => (x.year || YEAR) === y);
-    const sr = stockReq.filter(r    => (r.year || YEAR) === y);
-    const pa = pasture.filter(p     => (p.year || YEAR) === y);
-    const wc = cp.filter(countsWinter);
-    const ha        = cp.reduce((s,c) => s + n(c.ha), 0);
-    const supply    = wc.reduce((s,c) => s + effectiveNetDM(c), 0)
-                    + su.reduce((s,x) => s + n(x.kgDM), 0)
-                    + pa.reduce((s,p) => s + pastureRowDM(p), 0);
-    const demand    = sr.reduce((s,r) => s + n(r.headCurr)*n(r.kgDMday)*n(r.days), 0);
-    const bCrop     = cp.reduce((s,c) => s + n(c.ha) * benchRateFor(c.crop, cRates).rate, 0);
-    const bSupp     = su.reduce((s,x) => {
-      const t = (x.type || '').trim() || 'Supplement';
-      const rate = sRates[t] !== undefined ? sRates[t] : n(x.costPerKgDM);
-      return s + n(x.kgDM) * rate;
-    }, 0);
-    const bTotal    = bCrop + bSupp;
-    const aTotal    = cp.reduce((s,c) => s + rowCost(c), 0) + su.reduce((s,x) => s + n(x.kgDM)*n(x.costPerKgDM), 0);
-    const delta     = aTotal > 0 ? Math.round((bTotal - aTotal) / aTotal * 100) : null;
-    const isActive  = y === activeYear;
-
-    return `<tr class="yr-row${isActive?' yr-active':''}" onclick="changeYear('${y}');showTab('dashboard')">
-      <td><span class="yr-badge">${y}</span>${y === bYear ? ' <span style="font-size:10px;color:var(--info);font-weight:700">RATE BASE</span>' : ''}</td>
-      <td style="text-align:right">${ha > 0 ? ha.toFixed(1) : '<span style="color:var(--muted)">—</span>'}</td>
-      <td style="text-align:right">${cp.length || '<span style="color:var(--muted)">—</span>'}</td>
-      <td style="text-align:right">${sr.length || '<span style="color:var(--muted)">—</span>'}</td>
-      <td style="text-align:right">${supply > 0 ? fmtT(supply) : '<span style="color:var(--muted)">—</span>'}</td>
-      <td style="text-align:right">${demand > 0 ? fmtT(demand) : '<span style="color:var(--muted)">—</span>'}</td>
-      <td style="text-align:right">${bCrop > 0 ? fmt$(bCrop) : '<span style="color:var(--muted)">—</span>'}</td>
-      <td style="text-align:right">${bSupp > 0 ? fmt$(bSupp) : '<span style="color:var(--muted)">—</span>'}</td>
-      <td style="text-align:right;font-weight:700">${bTotal > 0 ? fmt$(bTotal) : '<span style="color:var(--muted)">—</span>'}</td>
-      <td style="text-align:right;color:var(--muted)">${aTotal > 0 ? fmt$(aTotal) : '—'}</td>
-      <td style="text-align:right">${delta !== null && y !== bYear
-        ? `<span style="font-weight:700;color:${delta > 0 ? 'var(--warn)' : delta < 0 ? 'var(--ok)' : 'var(--muted)'}">${delta >= 0 ? '+' : ''}${delta}%</span>`
-        : '<span style="color:var(--muted)">—</span>'}</td>
-    </tr>`;
-  }).join('');
-
-  document.getElementById('tab-benchmark').innerHTML = `
-    <div class="section-title">Benchmark — all seasons at ${bYear} rates</div>
-    <p style="color:var(--muted);font-size:12px;margin:0 0 16px">
-      Every season below is costed at the <strong>${bYear}</strong> rates — crop $/ha by crop type (ha-weighted from the ${bYear} plan) and supplement $/kgDM by type.
-      Differences between seasons now reflect programme size, crop mix, and DM quantities — not price movement.
-      <strong>Benchmark vs Actual Δ</strong> shows the price effect: positive = ${bYear} rates are dearer than that season paid.
-    </p>
-    <div class="tbl-wrap" style="margin-bottom:24px">
-      <table>
-        <thead><tr>
-          <th>Season</th>
-          <th style="text-align:right">Total Ha</th>
-          <th style="text-align:right">Paddocks</th>
-          <th style="text-align:right">Stock Classes</th>
-          <th style="text-align:right">DM Supply</th>
-          <th style="text-align:right">DM Demand</th>
-          <th style="text-align:right">Crop Cost @ ${bYear}</th>
-          <th style="text-align:right">Supp Cost @ ${bYear}</th>
-          <th style="text-align:right">Total @ ${bYear}</th>
-          <th style="text-align:right">Actual Total</th>
-          <th style="text-align:right">Δ price effect</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-
-    ${renderBenchmarkEfficiency(cRates)}
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" class="dash-lower">
-      <div>
-        <div class="section-title" style="font-size:14px">Crop rates applied ($/ha)</div>
-        <div class="tbl-wrap">
-          <table>
-            <thead><tr><th>Crop</th><th style="text-align:right">Rate</th><th>Source</th></tr></thead>
-            <tbody>${cropRateRows}</tbody>
-          </table>
-        </div>
-      </div>
-      <div>
-        <div class="section-title" style="font-size:14px">Supplement rates applied ($/kgDM)</div>
-        <div class="tbl-wrap">
-          <table>
-            <thead><tr><th>Type</th><th style="text-align:right">Rate</th><th>Source</th></tr></thead>
-            <tbody>${suppRateRows}</tbody>
-          </table>
-        </div>
-      </div>
-    </div>`;
-}
-
-// Crop efficiency at constant (benchmark) rates — $/kgDM differences are pure yield/area effects
-function renderBenchmarkEfficiency(cRates) {
-  if (!cropPlan.length) return '';
-  const allSeasons  = getYears().slice().reverse();
-  const allCropTypes = [...new Set(cropPlan.map(c => c.crop))].sort();
-
-  function dmColor(v) {
-    if (!v) return 'inherit';
-    if (v < 0.13) return 'var(--ok)';
-    if (v < 0.18) return 'var(--warn)';
-    return 'var(--danger)';
-  }
-
-  const seasonThs = allSeasons.map(y => `<th style="text-align:center;min-width:88px">${y}</th>`).join('');
-  const matrixRows = allCropTypes.map(crop => {
-    const rate = benchRateFor(crop, cRates).rate;
-    const cells = allSeasons.map(y => {
-      const rows = cropPlan.filter(c => c.crop === crop && (c.year || YEAR) === y);
-      if (!rows.length) return `<td style="text-align:center;color:var(--muted);background:#FAFAFA">—</td>`;
-      const ha    = rows.reduce((s,c) => s + n(c.ha), 0);
-      const effDM = rows.reduce((s,c) => s + effectiveGrossDM(c), 0);
-      if (effDM <= 0) return `<td style="text-align:center;color:var(--muted)">no yield<div style="font-size:10px">${ha.toFixed(0)} ha</div></td>`;
-      const cPerDM = (ha * rate) / effDM;
-      const actMk  = rows.some(c => hasActual(c)) ? ` <span style="color:var(--info)" title="Actual yield used">▲</span>` : '';
-      return `<td style="text-align:center">
-        <div style="font-weight:700;color:${dmColor(cPerDM)}">$${cPerDM.toFixed(3)}</div>
-        <div style="font-size:10px;color:var(--muted)">${ha.toFixed(0)} ha${actMk}</div>
-      </td>`;
-    }).join('');
-    return `<tr><td style="white-space:nowrap"><span class="tag ${CROP_TAG[crop]||'tag-other'}">${crop}</span></td>${cells}</tr>`;
-  }).join('');
-
-  return `
-    <div class="section-title" style="font-size:14px">$/kgDM grown at constant ${benchmarkYear()} rates</div>
-    <p style="font-size:12px;color:var(--muted);margin:0 0 8px">
-      Same crop, same rate, every season — movement here is yield and paddock selection, nothing else.
-      <span style="color:var(--info)">▲</span> = actual yield used.
-    </p>
-    <div class="tbl-wrap" style="margin-bottom:24px">
-      <table>
-        <thead><tr><th>Crop</th>${seasonThs}</tr></thead>
-        <tbody>${matrixRows}</tbody>
-      </table>
     </div>`;
 }
 
