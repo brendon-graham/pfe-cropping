@@ -9,6 +9,7 @@
 // v2.9: 'winterUse' appended to end of CROP_COLS (Winter feed / To silage / Summer feed).
 //       New Pasture sheet — winter pasture supply blocks (saved pasture + winter growth).
 // v3.0: New Regrass sheet — regrassing programme rows (financial only, not feed supply).
+// v3.1: Operations assurance — conflict-aware row upserts for shared Brendon/Doug use.
 
 const CROP_COLS      = ['id','paddock','crop','ha','drillDate','yieldKgHA','wastage','actualYieldKgHA','seedHA','chemHA','fertHA','opsHA','notes','year','winterUse'];
 const STOCK_COLS     = ['id','species','cls','headPrev','headCurr','kgDMday','period','days','feedSource','notes','year'];
@@ -21,6 +22,7 @@ const GMITEM_COLS    = ['id','crop','category','item','price','packSize','unit',
 const PASTURE_COLS   = ['id','name','ha','openingCover','residual','wastage','gMay','gJun','gJul','gAug','gSep','directKgDM','costPerKgDM','notes','year'];
 // v3.0: Regrass sheet — regrassing programme, financial only (never in feed supply)
 const REGRASS_COLS   = ['id','paddock','mix','ha','drillDate','seedHA','chemHA','fertHA','opsHA','notes','year'];
+const OPERATION_COLS = ['id','sourceType','sourceId','year','paddock','crop','templateId','templateVersion','stage','title','standard','critical','verify','offsetDays','dueDate','status','assignee','completedAt','completedBy','verifiedAt','verifiedBy','record','notes','audit','active','updatedAt'];
 
 function ensureSheet(ss, name, headers) {
   let sh = ss.getSheetByName(name);
@@ -68,6 +70,34 @@ function appendRows(sh, cols, rows) {
   SpreadsheetApp.flush();
 }
 
+// Operations are updated by record id rather than as one whole-season payload.
+// baseUpdatedAt prevents a stale phone from overwriting a newer edit to the same task.
+function upsertOperations(ss, batch) {
+  const sh = ensureSheet(ss,'Operations',OPERATION_COLS);
+  const rows = sheetToRows(sh,OPERATION_COLS);
+  const byId = new Map(rows.map(r => [String(r.id),r]));
+  const accepted = [];
+  const conflicts = [];
+  (batch || []).forEach(item => {
+    const incoming = item && item.row ? item.row : item;
+    if (!incoming || !incoming.id) return;
+    const id = String(incoming.id);
+    const current = byId.get(id);
+    const baseUpdatedAt = Number(item && item.baseUpdatedAt) || 0;
+    const currentUpdatedAt = Number(current && current.updatedAt) || 0;
+    if (current && currentUpdatedAt > baseUpdatedAt) {
+      conflicts.push(current);
+      return;
+    }
+    const clean = {};
+    OPERATION_COLS.forEach(c => clean[c] = incoming[c] != null ? incoming[c] : '');
+    byId.set(id,clean);
+    accepted.push(clean);
+  });
+  if (accepted.length) rowsToSheet(sh,OPERATION_COLS,[...byId.values()]);
+  return {accepted,conflicts};
+}
+
 function getTs(ss) {
   const sh = ss.getSheetByName('Settings');
   if (!sh) return 0;
@@ -101,6 +131,22 @@ function doPost(e) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const payload = JSON.parse(e.postData.contents);
+    if (payload.action === 'upsertOperations') {
+      const lock = LockService.getScriptLock();
+      if (!lock.tryLock(10000)) return respond(JSON.stringify({error:'Operations are busy — try again'}),e);
+      try {
+        const result = upsertOperations(ss,payload.operations);
+        const newTs = result.accepted.length ? Date.now() : getTs(ss);
+        if (result.accepted.length) setTs(ss,newTs);
+        return respond(JSON.stringify({
+          status:'ok', operationsSupported:true, schemaVersion:'3.1',
+          accepted:result.accepted.map(r => r.id), conflicts:result.conflicts,
+          lastModified:newTs
+        }),e);
+      } finally {
+        lock.releaseLock();
+      }
+    }
     const curTs = getTs(ss);
     if (payload.clientTs && payload.clientTs < curTs) {
       return respond(JSON.stringify({status:'stale', lastModified:curTs}), e);
@@ -161,6 +207,9 @@ function doGet(e) {
       gmItems:     sheetToRows(ensureSheet(ss,'GrossMargins',GMITEM_COLS), GMITEM_COLS),
       pasture:     sheetToRows(ensureSheet(ss,'Pasture',PASTURE_COLS), PASTURE_COLS),
       regrass:     sheetToRows(ensureSheet(ss,'Regrass',REGRASS_COLS), REGRASS_COLS),
+      operations:  sheetToRows(ensureSheet(ss,'Operations',OPERATION_COLS), OPERATION_COLS),
+      operationsSupported: true,
+      schemaVersion: '3.1',
       aiNotes:     getAINotes(ss),
       lastModified: getTs(ss)
     };
