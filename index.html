@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="app-version" content="3.1.0">
 <title>PFE Cropping</title>
 <style>
 :root {
@@ -28,6 +29,7 @@ header {
   display: flex; align-items: center; padding: 0 16px; gap: 12px; position: sticky; top: 0; z-index: 100;
 }
 header h1 { font-size: 17px; font-weight: 700; letter-spacing: -.5px; white-space: nowrap; }
+.app-ver { font-size: 10px; color: rgba(255,255,255,.58); white-space: nowrap; }
 .year-sel {
   background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25);
   color: #fff; border-radius: 6px; padding: 4px 8px; font-size: 14px; font-weight: 600;
@@ -152,6 +154,55 @@ td input.num { text-align: right; }
 .form-group textarea { min-height: 160px; resize: vertical; font-family: monospace; font-size: 12px; }
 .section-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid var(--lime); display: flex; justify-content: space-between; align-items: center; }
 
+/* Operations assurance */
+.ops-toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+.ops-toolbar select { min-height:44px; padding:8px 32px 8px 10px; border:1px solid var(--border); border-radius:7px; background:var(--card); font:inherit; }
+.ops-board { display:grid; grid-template-columns:minmax(220px,300px) 1fr; gap:16px; align-items:start; }
+.ops-paddocks { background:var(--card); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+.ops-paddock { width:100%; min-height:58px; padding:10px 12px; border:0; border-bottom:1px solid var(--border); background:var(--card); text-align:left; cursor:pointer; font:inherit; }
+.ops-paddock:last-child { border-bottom:0; }
+.ops-paddock.active { background:#F0F7EE; box-shadow:inset 4px 0 var(--lime); }
+.ops-paddock-title { display:flex; justify-content:space-between; gap:8px; font-weight:700; }
+.ops-paddock-meta { color:var(--muted); font-size:11px; margin-top:3px; display:flex; justify-content:space-between; gap:8px; }
+.ops-progress { height:6px; border-radius:4px; background:#E5E5E5; overflow:hidden; margin-top:7px; }
+.ops-progress > span { display:block; height:100%; background:var(--lime); }
+.ops-list { display:flex; flex-direction:column; gap:10px; }
+.ops-stage { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin:8px 0 0; }
+.op-card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:12px; display:grid; grid-template-columns:46px 1fr auto; gap:10px; align-items:start; }
+.op-card.overdue { border-left:4px solid var(--danger); }
+.op-card.due { border-left:4px solid var(--warn); }
+.op-card.attention { border-left:4px solid var(--danger); background:#FFF8F8; }
+.op-card.passed { opacity:.72; }
+.op-check { width:44px; height:44px; border-radius:8px; border:2px solid var(--border); background:#fff; color:var(--ok); font-size:24px; font-weight:800; cursor:pointer; }
+.op-check.checked { background:var(--ok); border-color:var(--ok); color:#fff; }
+.op-check.pending-verify { background:#FFF3E0; border-color:var(--warn); color:var(--warn); }
+.op-title { font-weight:700; line-height:1.25; }
+.op-standard { color:var(--muted); font-size:12px; margin-top:4px; line-height:1.35; }
+.op-meta { display:flex; flex-wrap:wrap; gap:6px 10px; margin-top:7px; font-size:11px; color:var(--muted); }
+.op-meta .late { color:var(--danger); font-weight:700; }
+.op-meta .soon { color:var(--warn); font-weight:700; }
+.op-actions { display:flex; flex-direction:column; gap:6px; min-width:94px; }
+.op-actions .btn { min-height:38px; }
+.op-pill { display:inline-block; border-radius:12px; padding:3px 8px; font-size:10px; font-weight:700; background:#ECEFF1; color:#455A64; }
+.op-pill.critical { background:#FFF3E0; color:var(--warn); }
+.op-pill.verified { background:#E8F5E9; color:var(--ok); }
+.op-pill.attention { background:#FFEBEE; color:var(--danger); }
+.ops-empty { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:28px; text-align:center; color:var(--muted); }
+.op-modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.op-modal-grid .wide { grid-column:1 / -1; }
+.op-modal-actions { padding:14px 18px; display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+.op-audit { font-size:11px; color:var(--muted); background:#F7F7F7; border-radius:6px; padding:8px 10px; line-height:1.45; }
+@media (max-width: 760px) {
+  .ops-board { grid-template-columns:1fr; }
+  .ops-paddocks { display:flex; overflow-x:auto; }
+  .ops-paddock { min-width:210px; border-right:1px solid var(--border); border-bottom:0; }
+  .op-card { grid-template-columns:46px 1fr; }
+  .op-actions { grid-column:2; flex-direction:row; min-width:0; }
+  .op-actions .btn { flex:1; min-height:44px; }
+  .op-modal-grid { grid-template-columns:1fr; }
+  .op-modal-grid .wide { grid-column:auto; }
+}
+
 /* History comparison */
 .yr-row { cursor: pointer; }
 .yr-row:hover td { background: #F0F7EE !important; }
@@ -210,6 +261,7 @@ td input.num { text-align: right; }
 
 <header>
   <h1>PFE Cropping</h1>
+  <span class="app-ver">v3.1.0</span>
   <select id="year-sel" class="year-sel" onchange="changeYear(this.value)"></select>
   <button class="btn-new-yr" onclick="newYear()">+ Season</button>
   <button class="btn-new-yr" onclick="openReport()">⎙ Report</button>
@@ -221,6 +273,7 @@ td input.num { text-align: right; }
 <nav>
   <button class="active" onclick="showTab('dashboard')">Dashboard</button>
   <button onclick="showTab('crop')">Crop Plan</button>
+  <button onclick="showTab('operations')">Operations</button>
   <button onclick="showTab('paddocks')">Paddocks</button>
   <button onclick="showTab('stock')">Stock Req</button>
   <button onclick="showTab('feed')">Feed Budget</button>
@@ -236,6 +289,7 @@ td input.num { text-align: right; }
 <main>
   <div id="tab-dashboard" class="tab active"></div>
   <div id="tab-crop" class="tab"></div>
+  <div id="tab-operations" class="tab"></div>
   <div id="tab-paddocks" class="tab"></div>
   <div id="tab-stock" class="tab"></div>
   <div id="tab-feed" class="tab"></div>
@@ -258,14 +312,25 @@ td input.num { text-align: right; }
   </div>
 </div>
 
+<div id="opModal" class="pdkModal" onclick="if(event.target===this)closeOperation()">
+  <div class="pdkModal-inner" style="max-width:720px">
+    <div class="pdkModal-hdr">
+      <h2 id="opModalTitle">Operation</h2>
+      <button class="btn btn-sm btn-ghost" style="color:#fff;border-color:rgba(255,255,255,.35)" onclick="closeOperation()">Close</button>
+    </div>
+    <div id="opModalBody"></div>
+  </div>
+</div>
+
 <div id="reportView">
   <div class="rpt-controls">
     <strong style="font-size:13px">Report</strong>
     <button class="btn btn-sm" style="background:var(--lime);color:var(--soil);font-weight:700" onclick="setReportPreset('full')">Full (Mark)</button>
-    <button class="btn btn-sm btn-ghost" style="color:#fff;border-color:rgba(255,255,255,.35)" onclick="setReportPreset('agronomist')">Agronomist</button>
+    <button class="btn btn-sm btn-ghost" style="color:#fff;border-color:rgba(255,255,255,.35)" onclick="setReportPreset('field')">Field Team</button>
     <div class="rpt-sep"></div>
     <label><input type="checkbox" id="rpt-s-summary" checked onchange="buildReport()">Summary</label>
     <label><input type="checkbox" id="rpt-s-crop" checked onchange="buildReport()">Crop Plan</label>
+    <label><input type="checkbox" id="rpt-s-operations" checked onchange="buildReport()">Operations</label>
     <label><input type="checkbox" id="rpt-s-regrass" checked onchange="buildReport()">Regrassing</label>
     <label><input type="checkbox" id="rpt-s-stock" checked onchange="buildReport()">Stock Req</label>
     <label><input type="checkbox" id="rpt-s-feed" checked onchange="buildReport()">Feed Budget</label>
@@ -281,7 +346,7 @@ td input.num { text-align: right; }
 
 <script>
 // -- CONSTANTS --
-const APP_VER = '3.0';
+const APP_VER = '3.1.0';
 const NS = 'crop2_';
 const YEAR = '2026/27';
 const YEAR_PAT = /^\d{4}\/\d{2}$/;
@@ -322,6 +387,94 @@ const REGRASS_MIXES = ['Italian Clover','Red Clover','Lucerne','Winterstar','Per
 const REGRASS_GM_SOURCE = {
   'Italian Clover':'Italian Clover', 'Red Clover':'Red Clover',
   'Lucerne':'Lucerne', 'Winterstar':'Winterstar',
+};
+
+// Versioned field-execution standard. Tasks are anchored to the planned drilling
+// date but remain editable because weather, soil condition and crop stage govern
+// the actual timing. Product and rate decisions must follow the current label and
+// the paddock-specific prescription recorded against the task.
+const OP_TEMPLATE_VERSION = 'PFE Standard 1.0';
+const OP_TEAM = ['Brendon','Doug'];
+const OP_STAGES = ['Planning','Pre-plant','Drilling','Establishment','In-crop','Harvest / grazing','Close-out'];
+const OP_STATUSES = ['Not started','In progress','Complete','Needs attention','N/A'];
+
+const COMMON_OPERATIONS = [
+  { id:'soil-history', stage:'Planning', offset:-70, critical:true, title:'Soil, lime and paddock-history review', standard:'Review the latest soil test, lime timing, previous crops, drainage and compaction. Record the amendment and cultivation decisions for this paddock.' },
+  { id:'programme-approved', stage:'Planning', offset:-49, critical:true, verify:true, title:'Paddock programme approved', standard:'Confirm crop purpose, cultivar, target population, fertiliser prescription, cultivation sequence, crop-protection approach and responsible people.' },
+  { id:'inputs-ready', stage:'Planning', offset:-35, critical:false, title:'Seed, inputs and contractors confirmed', standard:'Confirm seed lot, treatment, fertiliser and likely crop-protection products are available, and book contractors with realistic weather flexibility.' },
+  { id:'sprayout', stage:'Pre-plant', offset:-28, critical:true, title:'Spray-out completed to prescription', standard:'Identify the target weeds, confirm current label directions and application conditions, then record product, rate, water rate, weather, operator and treated area.' },
+  { id:'sprayout-check', stage:'Pre-plant', offset:-18, critical:true, title:'Spray-out result inspected', standard:'Walk the paddock and record control, misses, surviving species and whether remedial treatment is required before cultivation.' },
+  { id:'seedbed', stage:'Pre-plant', offset:-5, critical:true, title:'Seedbed quality approved', standard:'Confirm cultivation was completed in suitable conditions and the seedbed is level, fine, firm and moist without compaction, smearing or buried turf affecting establishment.' },
+  { id:'basal-fertiliser', stage:'Pre-plant', offset:-3, critical:true, title:'Basal fertiliser verified', standard:'Record product, rate, source prescription, placement and application date. Confirm any incorporation requirement was achieved.' },
+  { id:'drill-calibration', stage:'Drilling', offset:0, critical:true, verify:true, title:'Drill calibrated and setup checked', standard:'Record seed lot, target and measured output, drilling depth, row spacing, speed and placement checks before the paddock is completed.' },
+  { id:'drilling-record', stage:'Drilling', offset:0, critical:true, title:'Drilling completed and recorded', standard:'Record actual date, area, rate or population, soil moisture, seedbed condition, operator and any variation from the approved programme.' },
+  { id:'emergence-count', stage:'Establishment', offset:10, critical:true, verify:true, title:'Emergence and plant population assessed', standard:'Count representative quadrats or row lengths, record population and uniformity, inspect gaps, pests and seedling health, and set any rework action.' },
+  { id:'early-scout', stage:'Establishment', offset:17, critical:false, title:'Early crop walk completed', standard:'Inspect representative areas for weeds, insects, slugs, disease, nutrient symptoms, waterlogging and cultivation or drilling faults.' },
+  { id:'nutrition-review', stage:'In-crop', offset:28, critical:true, title:'In-crop nutrition reviewed', standard:'Review crop demand, soil supply, weather and crop condition. Record the decision and all fertiliser product, rate, timing and placement details.' },
+  { id:'canopy-review', stage:'In-crop', offset:56, critical:false, title:'Canopy and yield-potential review', standard:'Record ground cover, uniformity, limiting factors, likely yield range and any action needed to protect the crop target.' },
+  { id:'season-closeout', stage:'Close-out', offset:240, critical:false, title:'Paddock close-out completed', standard:'Record actual yield, total inputs, major variances, crop outcome and lessons to carry into the next paddock programme.' },
+];
+
+const CROP_OPERATIONS = {
+  'Kale': [
+    { id:'rotation-risk', stage:'Planning', offset:-70, critical:true, title:'Brassica rotation risk checked', standard:'Review the paddock crop history and soil-borne disease risk. Record why kale remains suitable and any mitigation where a full rotation break has not occurred.' },
+    { id:'brassica-postem', stage:'In-crop', offset:14, critical:true, title:'Post-emergence weed decision', standard:'Record crop and weed growth stages, species and pressure. Apply only the current paddock prescription under suitable conditions and check the result.' },
+    { id:'brassica-pest-1', stage:'In-crop', offset:14, critical:true, title:'Seedling pest inspection', standard:'Inspect representative transects for feeding damage and pest pressure. Record the threshold-based decision and any treatment details.' },
+    { id:'brassica-pest-2', stage:'In-crop', offset:28, critical:false, title:'Follow-up pest and disease inspection', standard:'Recheck crop health and treatment result, including growing points and the underside of leaves. Record the action or no-action decision.' },
+    { id:'brassica-topdress', stage:'In-crop', offset:30, critical:true, title:'Brassica topdressing decision completed', standard:'Confirm crop requirement and paddock supply before application. Record nitrogen, sulphur, potassium or boron decisions and actual applications.' },
+    { id:'yield-assessment', stage:'Harvest / grazing', offset:175, critical:true, verify:true, title:'Pre-grazing yield assessed', standard:'Measure representative crop yield and variability, identify poor or high-risk areas and enter the result in the crop plan.' },
+    { id:'grazing-plan', stage:'Harvest / grazing', offset:190, critical:true, title:'Grazing and transition plan approved', standard:'Confirm allocation, transition, supplement, mineral, water, fencing, access, soil-risk and animal-monitoring arrangements before grazing.' },
+  ],
+  'Swedes': [
+    { id:'rotation-risk', stage:'Planning', offset:-70, critical:true, title:'Brassica rotation risk checked', standard:'Review the paddock crop history and soil-borne disease risk. Record why swedes remain suitable and any mitigation where a full rotation break has not occurred.' },
+    { id:'brassica-postem', stage:'In-crop', offset:14, critical:true, title:'Post-emergence weed decision', standard:'Record crop and weed growth stages, species and pressure. Apply only the current paddock prescription under suitable conditions and check the result.' },
+    { id:'brassica-pest-1', stage:'In-crop', offset:14, critical:true, title:'Seedling pest inspection', standard:'Inspect representative transects for feeding damage and pest pressure. Record the threshold-based decision and any treatment details.' },
+    { id:'brassica-pest-2', stage:'In-crop', offset:28, critical:false, title:'Follow-up pest and disease inspection', standard:'Recheck crop health and treatment result, including growing points and the underside of leaves. Record the action or no-action decision.' },
+    { id:'brassica-topdress', stage:'In-crop', offset:30, critical:true, title:'Brassica topdressing decision completed', standard:'Confirm crop requirement and paddock supply before application. Record nitrogen, sulphur, potassium or boron decisions and actual applications.' },
+    { id:'yield-assessment', stage:'Harvest / grazing', offset:190, critical:true, verify:true, title:'Pre-grazing yield assessed', standard:'Measure representative crop yield and variability, identify poor or high-risk areas and enter the result in the crop plan.' },
+    { id:'grazing-plan', stage:'Harvest / grazing', offset:205, critical:true, title:'Grazing and transition plan approved', standard:'Confirm allocation, transition, supplement, mineral, water, fencing, access, soil-risk and animal-monitoring arrangements before grazing.' },
+  ],
+  'Fodder Beet': [
+    { id:'beet-seedbed', stage:'Pre-plant', offset:-5, critical:true, title:'Precision beet seedbed check', standard:'Confirm a fine, firm, level and moist seedbed with even consolidation and no clods or trash likely to compromise depth or precision placement.' },
+    { id:'beet-preem', stage:'In-crop', offset:2, critical:true, title:'Pre-emergence programme completed', standard:'Record the paddock prescription, soil surface and moisture, application conditions, products, rates and treated area.' },
+    { id:'beet-herbicide-1', stage:'In-crop', offset:14, critical:true, title:'Beet weed programme — first decision', standard:'Record beet and weed growth stages and species. Complete the current label-compliant prescription at the correct timing and inspect crop safety and control.' },
+    { id:'beet-herbicide-2', stage:'In-crop', offset:28, critical:true, title:'Beet weed programme — second decision', standard:'Reassess new weed emergence, prior control and crop stage. Record the next treatment or justified no-treatment decision.' },
+    { id:'beet-herbicide-3', stage:'In-crop', offset:42, critical:true, title:'Beet weed programme — closure decision', standard:'Confirm the canopy is on track for weed suppression and record any final treatment, escapes or hand-rogue requirement.' },
+    { id:'beet-pest-virus', stage:'In-crop', offset:21, critical:true, title:'Beet pest and virus-risk inspection', standard:'Inspect representative transects, record pest pressure and symptoms, and document the threshold and treatment decision.' },
+    { id:'beet-disease', stage:'In-crop', offset:80, critical:false, title:'Beet leaf-disease inspection', standard:'Inspect representative areas, record symptoms and canopy health, and document the treatment or no-treatment decision.' },
+    { id:'yield-assessment', stage:'Harvest / grazing', offset:200, critical:true, verify:true, title:'Pre-grazing yield assessed', standard:'Measure representative beet yield and variability, record bulb and leaf contribution where practical, and update the crop plan.' },
+    { id:'grazing-plan', stage:'Harvest / grazing', offset:215, critical:true, title:'Beet grazing and transition plan approved', standard:'Confirm allocation, gradual transition, supplement, mineral, water, fencing, access, soil-risk and animal-monitoring arrangements before grazing.' },
+  ],
+  'Lifting Beet': [
+    { id:'beet-seedbed', stage:'Pre-plant', offset:-5, critical:true, title:'Precision beet seedbed check', standard:'Confirm a fine, firm, level and moist seedbed with even consolidation and no clods or trash likely to compromise depth or precision placement.' },
+    { id:'beet-preem', stage:'In-crop', offset:2, critical:true, title:'Pre-emergence programme completed', standard:'Record the paddock prescription, soil surface and moisture, application conditions, products, rates and treated area.' },
+    { id:'beet-herbicide-1', stage:'In-crop', offset:14, critical:true, title:'Beet weed programme — first decision', standard:'Record beet and weed growth stages and species. Complete the current label-compliant prescription at the correct timing and inspect crop safety and control.' },
+    { id:'beet-herbicide-2', stage:'In-crop', offset:28, critical:true, title:'Beet weed programme — second decision', standard:'Reassess new weed emergence, prior control and crop stage. Record the next treatment or justified no-treatment decision.' },
+    { id:'beet-herbicide-3', stage:'In-crop', offset:42, critical:true, title:'Beet weed programme — closure decision', standard:'Confirm the canopy is on track for weed suppression and record any final treatment, escapes or hand-rogue requirement.' },
+    { id:'beet-pest-virus', stage:'In-crop', offset:21, critical:true, title:'Beet pest and virus-risk inspection', standard:'Inspect representative transects, record pest pressure and symptoms, and document the threshold and treatment decision.' },
+    { id:'beet-disease', stage:'In-crop', offset:80, critical:false, title:'Beet leaf-disease inspection', standard:'Inspect representative areas, record symptoms and canopy health, and document the treatment or no-treatment decision.' },
+    { id:'yield-assessment', stage:'Harvest / grazing', offset:215, critical:true, verify:true, title:'Pre-lifting yield and quality assessed', standard:'Measure representative yield and variability and record crop condition, contamination risk and likely harvestable tonnes.' },
+    { id:'lifting-plan', stage:'Harvest / grazing', offset:230, critical:true, title:'Lifting, transport and storage plan approved', standard:'Confirm lifting conditions, machinery, losses, transport, storage destination, contamination controls and feed inventory recording.' },
+  ],
+  'Maize': [
+    { id:'maize-preem', stage:'In-crop', offset:2, critical:true, title:'Maize pre-emergence decision completed', standard:'Record soil conditions, weed risk and the current paddock prescription. Complete the application within label and weather requirements.' },
+    { id:'maize-emergence', stage:'Establishment', offset:10, critical:true, title:'Maize population and uniformity assessed', standard:'Count established plants across representative row lengths, record uniformity and emergence timing, and investigate gaps or uneven plants.' },
+    { id:'maize-postweed', stage:'In-crop', offset:25, critical:true, title:'Maize post-emergence weed decision', standard:'Record crop and weed growth stages, species, pressure and resistance risk, then document treatment and follow-up inspection.' },
+    { id:'maize-sidedress', stage:'In-crop', offset:35, critical:true, title:'Maize sidedress decision completed', standard:'Review soil nitrogen supply, crop demand and conditions. Record product, rate, timing, placement and any revised yield expectation.' },
+    { id:'maize-crop-health', stage:'In-crop', offset:45, critical:false, title:'Maize crop-health inspection', standard:'Inspect population, weeds, pests, disease, nutrient status, waterlogging and compaction effects, then record limiting factors.' },
+    { id:'maize-maturity', stage:'Harvest / grazing', offset:150, critical:true, title:'Silage maturity monitoring started', standard:'Record whole-crop maturity indicators and likely harvest window. Coordinate contractor, transport and stack preparation.' },
+    { id:'maize-harvest', stage:'Harvest / grazing', offset:175, critical:true, title:'Maize harvest quality recorded', standard:'Record harvest date, area, yield estimate, maturity or dry matter, chop and processing checks, compaction, sealing and losses.' },
+  ],
+  'Triticale': [
+    { id:'cereal-weed', stage:'In-crop', offset:24, critical:true, title:'Triticale weed-control decision', standard:'Record crop and weed growth stages, species and pressure, then document the current prescription and follow-up result.' },
+    { id:'cereal-tillering', stage:'In-crop', offset:35, critical:true, title:'Tillering and nitrogen review', standard:'Assess establishment and tiller population, crop demand and soil supply. Record fertiliser decision and application details.' },
+    { id:'cereal-health', stage:'In-crop', offset:70, critical:false, title:'Disease, pest and lodging-risk review', standard:'Inspect representative areas and record canopy condition, disease, pests, lodging risk and any treatment decision.' },
+    { id:'cereal-maturity', stage:'Harvest / grazing', offset:190, critical:true, title:'Silage maturity monitoring started', standard:'Record crop stage, whole-crop condition and likely harvest window. Confirm contractor, transport and stack readiness.' },
+    { id:'cereal-harvest', stage:'Harvest / grazing', offset:210, critical:true, title:'Triticale harvest quality recorded', standard:'Record harvest date, area, yield estimate, maturity or dry matter, chop quality, compaction, sealing and losses.' },
+  ],
+  'Rape': [],
+  'Clover': [],
+  'Other': [],
 };
 
 
@@ -516,6 +669,7 @@ let stockReq    = [];
 let supplements = [];
 let pasture     = [];   // {id, name, ha, openingCover, residual, wastage, gMay..gSep, directKgDM, costPerKgDM, notes, year}
 let regrass     = [];   // {id, paddock, mix, ha, drillDate, seedHA, chemHA, fertHA, opsHA, notes, year} — financial only
+let operations  = [];   // versioned paddock assurance tasks; synced by conflict-aware row upsert
 let paddocks    = [];   // {id, name, ha, soilType, notes}
 let soilTests   = [];   // {id, paddockId, date, pH, olsenP, qtK, ss, qtCa, notes}
 let limeEvents  = [];   // {id, paddockId, date, rateT, notes}
@@ -529,6 +683,14 @@ let syncPending = false;
 let pushAgain   = false;   // edit landed while a push was already scheduled/in flight
 let pollTimer   = null;
 let activeTab   = 'dashboard';
+let activeOpsFilter = 'Attention';
+let activeOpsCrop = 'All';
+let activeOpsPerson = 'All';
+let activeOpsSource = '';
+let openOperationId = '';
+let opPushTimer = null;
+let opPushPending = new Map();
+let operationsBackendReady = false;
 
 // -- YEAR HELPERS --
 function getYears() {
@@ -538,6 +700,7 @@ function getYears() {
   supplements.forEach(x => s.add(x.year || YEAR));
   pasture.forEach(p => s.add(p.year || YEAR));
   regrass.forEach(r => s.add(r.year || YEAR));
+  operations.forEach(o => s.add(o.year || YEAR));
   return [...s].sort().reverse();
 }
 
@@ -546,11 +709,13 @@ function yearStock() { return stockReq.filter(r    => (r.year    || YEAR) === ac
 function yearSupps() { return supplements.filter(x => (x.year   || YEAR) === activeYear); }
 function yearPasture() { return pasture.filter(p   => (p.year   || YEAR) === activeYear); }
 function yearRegrass() { return regrass.filter(r   => (r.year   || YEAR) === activeYear); }
+function yearOperations() { return operations.filter(o => (o.year || YEAR) === activeYear && opIsActive(o)); }
 
 function changeYear(y) {
   activeYear = y;
   settings.year = y;
   localStorage.setItem(NS+'settings', JSON.stringify(settings));
+  ensureOperationsForSeason();
   updateYearSel();
   renderTab(activeTab);
 }
@@ -579,6 +744,7 @@ function saveLocal() {
   localStorage.setItem(NS+'supps', JSON.stringify(supplements));
   localStorage.setItem(NS+'pasture', JSON.stringify(pasture));
   localStorage.setItem(NS+'regrass', JSON.stringify(regrass));
+  localStorage.setItem(NS+'operations', JSON.stringify(operations));
   localStorage.setItem(NS+'paddocks', JSON.stringify(paddocks));
   localStorage.setItem(NS+'soilTests', JSON.stringify(soilTests));
   localStorage.setItem(NS+'limeEvents', JSON.stringify(limeEvents));
@@ -598,6 +764,7 @@ function load() {
   supplements = JSON.parse(localStorage.getItem(NS+'supps')       || '[]');
   pasture     = JSON.parse(localStorage.getItem(NS+'pasture')     || '[]');
   regrass     = JSON.parse(localStorage.getItem(NS+'regrass')     || '[]');
+  operations  = JSON.parse(localStorage.getItem(NS+'operations')  || '[]');
   paddocks    = JSON.parse(localStorage.getItem(NS+'paddocks')    || '[]');
   soilTests   = JSON.parse(localStorage.getItem(NS+'soilTests')   || '[]');
   limeEvents  = JSON.parse(localStorage.getItem(NS+'limeEvents')  || '[]');
@@ -609,6 +776,8 @@ function load() {
   settings    = JSON.parse(localStorage.getItem(NS+'settings') || '{}');
   settings.scriptUrl  = settings.scriptUrl  || DEFAULT_URL;
   settings.disconnected = settings.disconnected || false;
+  settings.userName = settings.userName || 'Brendon';
+  if (location.protocol === 'file:' || ['localhost','127.0.0.1'].includes(location.hostname)) settings.disconnected = true;
   activeYear  = settings.year || YEAR;
   // Migrate rows where old schema shift put year value into opsHA
   const YEAR_PAT = /^\d{4}\/\d{2}$/;
@@ -624,6 +793,7 @@ function load() {
   supplements.forEach(x => { if (!x.year) x.year = YEAR; });
   pasture.forEach(p     => { if (!p.year) p.year = YEAR; });
   regrass.forEach(r     => { if (!r.year) r.year = YEAR; });
+  operations.forEach(normaliseOperation);
   // Migrate rows that predate the wastage field — assign crop-type default
   cropPlan.forEach(c => { if (c.wastage === undefined || c.wastage === null || c.wastage === '') c.wastage = GM[c.crop]?.wastage ?? 15; });
   // Migrate rows that predate actualYieldKgHA
@@ -634,6 +804,7 @@ function load() {
   settings.closedYears = settings.closedYears || [];
   // Seed paddock register from known crop history if empty
   if (!paddocks.length) seedLocalPaddocks();
+  ensureOperationsForSeason();
   lastTs = Number(localStorage.getItem(NS+'lastTs') || 0);
 }
 
@@ -642,6 +813,470 @@ function n(v) { return Number(v) || 0; }
 function fmt$(v) { return '$' + Math.round(n(v)).toLocaleString(); }
 function fmtT(v) { return Math.round(n(v)/1000).toLocaleString() + 't'; }
 function fmtDM(v) { return Math.round(n(v)).toLocaleString() + ' kg'; }
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// -- OPERATIONS ASSURANCE --
+function opIsActive(o) { return ![false,0,'false','0'].includes(o.active); }
+function opRequiresVerification(o) { return o.verify === true || o.verify === 'true' || o.verify === 1 || o.verify === '1'; }
+function opNeedsVerification(o) { return o.status === 'Complete' && opRequiresVerification(o) && !o.verifiedAt; }
+function opPassed(o) { return o.status === 'N/A' || (o.status === 'Complete' && !opNeedsVerification(o)); }
+function opTemplatesFor(crop) {
+  const list = [...COMMON_OPERATIONS, ...(CROP_OPERATIONS[crop] || [])];
+  return list.sort((a,b) => OP_STAGES.indexOf(a.stage) - OP_STAGES.indexOf(b.stage) || a.offset - b.offset || a.title.localeCompare(b.title));
+}
+function parseAppDate(v) {
+  if (!v) return null;
+  const s = String(v).trim();
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return new Date(Number(m[3]), Number(m[2])-1, Number(m[1]), 12);
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T|$)/);
+  if (m) return new Date(Number(m[1]), Number(m[2])-1, Number(m[3]), 12);
+  return null;
+}
+function dateKey(d) {
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return '';
+  return [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-');
+}
+function addDateDays(v, days) {
+  const d = parseAppDate(v);
+  if (!d) return '';
+  d.setDate(d.getDate() + n(days));
+  return dateKey(d);
+}
+function todayKey() { return dateKey(new Date()); }
+function displayAppDate(v) {
+  if (!v) return 'No date';
+  const d = parseAppDate(v);
+  return d ? d.toLocaleDateString('en-NZ', { day:'numeric', month:'short', year:'numeric' }) : String(v);
+}
+function normaliseOperation(o) {
+  if (!o.year) o.year = YEAR;
+  if (!o.status) o.status = 'Not started';
+  if (!o.templateVersion) o.templateVersion = OP_TEMPLATE_VERSION;
+  if (!o.updatedAt) o.updatedAt = 0;
+  if (o.active === undefined || o.active === null || o.active === '') o.active = true;
+  const due = parseAppDate(o.dueDate);
+  if (due) o.dueDate = dateKey(due);
+  return o;
+}
+function daysFromToday(v) {
+  const d = parseAppDate(v);
+  const t = parseAppDate(todayKey());
+  return d && t ? Math.round((d - t) / 86400000) : null;
+}
+function opDueState(o) {
+  if (o.status === 'Needs attention') return 'attention';
+  if (opNeedsVerification(o)) return 'verify';
+  if (opPassed(o)) return 'passed';
+  const days = daysFromToday(o.dueDate);
+  if (days === null) return 'unscheduled';
+  if (days < 0) return 'overdue';
+  if (days <= 7) return 'due';
+  return 'upcoming';
+}
+function opDueLabel(o) {
+  const state = opDueState(o);
+  const days = daysFromToday(o.dueDate);
+  if (state === 'passed') return o.status === 'N/A' ? 'Not applicable' : 'Complete';
+  if (state === 'verify') return 'Awaiting verification';
+  if (state === 'attention') return 'Needs attention';
+  if (days === null) return 'Set target date';
+  if (days < 0) return `${Math.abs(days)} day${Math.abs(days)===1?'':'s'} overdue`;
+  if (days === 0) return 'Due today';
+  return `Due in ${days} day${days===1?'':'s'}`;
+}
+function opSafeKey(v) { return String(v || '').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
+const COMMON_OP_IDS = new Set(COMMON_OPERATIONS.map(t => t.id));
+function opRecordId(c, t) {
+  // Common operations are stage-independent, so their id excludes the crop type —
+  // changing a paddock's crop keeps their completion and verification. Crop-specific
+  // tasks include the crop so they correctly reset when the crop changes.
+  const scope = COMMON_OP_IDS.has(t.id) ? 'common' : opSafeKey(c.crop);
+  return `op_${opSafeKey(c.id)}_${scope}_${opSafeKey(t.id)}`;
+}
+function newOperation(c, t) {
+  return {
+    id:opRecordId(c,t), sourceType:'crop', sourceId:c.id, year:c.year || YEAR,
+    paddock:c.paddock || '', crop:c.crop || 'Other', templateId:t.id,
+    templateVersion:OP_TEMPLATE_VERSION, stage:t.stage, title:t.title,
+    standard:t.standard, critical:!!t.critical, verify:!!t.verify, offsetDays:t.offset,
+    dueDate:addDateDays(c.drillDate,t.offset), status:'Not started', assignee:'',
+    completedAt:'', completedBy:'', verifiedAt:'', verifiedBy:'',
+    record:'', notes:'', audit:'[]', active:true, updatedAt:0
+  };
+}
+function ensureOperationsForSeason(queueChanges=false) {
+  const expected = new Set();
+  const touched = [];
+  let changed = false;
+  yearCrop().filter(c => c.paddock && c.crop).forEach(c => {
+    opTemplatesFor(c.crop).forEach(t => {
+      const id = opRecordId(c,t);
+      expected.add(id);
+      let o = operations.find(x => x.id === id);
+      if (!o) {
+        o = newOperation(c,t);
+        operations.push(o);
+        if (queueChanges) touched.push({o,baseUpdatedAt:0,action:'Task created from crop plan'});
+        changed = true;
+        return;
+      }
+      const baseUpdatedAt = n(o.updatedAt);
+      let rowChanged = false;
+      const nextDue = addDateDays(c.drillDate,t.offset);
+      const updates = {
+        sourceType:'crop', sourceId:c.id, year:c.year || YEAR, paddock:c.paddock,
+        crop:c.crop, templateId:t.id, stage:t.stage, title:t.title, standard:t.standard,
+        critical:!!t.critical, verify:!!t.verify, offsetDays:t.offset, active:true
+      };
+      if (!opPassed(o) && o.status !== 'Needs attention') updates.dueDate = nextDue;
+      Object.entries(updates).forEach(([k,v]) => {
+        if (o[k] !== v) { o[k] = v; changed = true; rowChanged = true; }
+      });
+      if (rowChanged && queueChanges) touched.push({o,baseUpdatedAt,action:'Task refreshed from crop plan'});
+    });
+  });
+  operations.forEach(o => {
+    if ((o.year || YEAR) === activeYear && o.sourceType === 'crop' && opIsActive(o) && !expected.has(o.id)) {
+      const baseUpdatedAt = n(o.updatedAt);
+      o.active = false;
+      changed = true;
+      if (queueChanges) touched.push({o,baseUpdatedAt,action:'Task archived after crop plan change'});
+    }
+  });
+  touched.forEach(item => {
+    appendOpAudit(item.o,item.action,settings.userName || 'Unknown');
+    item.o.updatedAt = Date.now();
+    queueOperationPush(item.o,item.baseUpdatedAt);
+  });
+  if (changed) saveLocal();
+  return changed;
+}
+function opAuditEntries(o) {
+  try { return Array.isArray(JSON.parse(o.audit || '[]')) ? JSON.parse(o.audit || '[]') : []; }
+  catch(e) { return []; }
+}
+function appendOpAudit(o, action, actor) {
+  const entries = opAuditEntries(o);
+  entries.unshift({ at:new Date().toISOString(), by:actor || settings.userName || 'Unknown', action });
+  o.audit = JSON.stringify(entries.slice(0,30));
+}
+function touchOperation(o, action, baseUpdatedAt) {
+  const actor = settings.userName || 'Unknown';
+  appendOpAudit(o, action, actor);
+  o.updatedAt = Date.now();
+  saveLocal();
+  queueOperationPush(o, baseUpdatedAt);
+}
+function sourceOperations(sourceId) {
+  return yearOperations().filter(o => o.sourceId === sourceId).sort((a,b) =>
+    OP_STAGES.indexOf(a.stage) - OP_STAGES.indexOf(b.stage) ||
+    String(a.dueDate || '9999').localeCompare(String(b.dueDate || '9999')) ||
+    a.title.localeCompare(b.title));
+}
+function opSourceProgress(sourceId) {
+  const list = sourceOperations(sourceId);
+  const passed = list.filter(opPassed).length;
+  return { total:list.length, passed, pct:list.length ? Math.round(passed/list.length*100) : 0 };
+}
+function operationCounts(list=yearOperations()) {
+  return {
+    total:list.length,
+    passed:list.filter(opPassed).length,
+    overdue:list.filter(o => opDueState(o)==='overdue').length,
+    due:list.filter(o => opDueState(o)==='due').length,
+    attention:list.filter(o => ['attention','verify'].includes(opDueState(o))).length,
+  };
+}
+function opMatchesFilter(o) {
+  if (activeOpsCrop !== 'All' && o.crop !== activeOpsCrop) return false;
+  if (activeOpsPerson !== 'All' && (o.assignee || 'Unassigned') !== activeOpsPerson) return false;
+  const state = opDueState(o);
+  if (activeOpsFilter === 'Attention') return ['attention','verify','overdue'].includes(state);
+  if (activeOpsFilter === 'Next 7 days') return state === 'due';
+  if (activeOpsFilter === 'Open') return !opPassed(o);
+  if (activeOpsFilter === 'Complete') return opPassed(o);
+  return true;
+}
+function setOpsFilter(kind, value) {
+  if (kind === 'status') activeOpsFilter = value;
+  if (kind === 'crop') activeOpsCrop = value;
+  if (kind === 'person') activeOpsPerson = value;
+  activeOpsSource = '';
+  renderOperations();
+}
+function selectOpsSource(id) {
+  activeOpsSource = id;
+  renderOperations();
+}
+function renderOperations() {
+  ensureOperationsForSeason();
+  const all = yearOperations();
+  const selectedBase = all.filter(o =>
+    (activeOpsCrop === 'All' || o.crop === activeOpsCrop) &&
+    (activeOpsPerson === 'All' || (o.assignee || 'Unassigned') === activeOpsPerson));
+  const counts = operationCounts(selectedBase);
+  const visible = all.filter(opMatchesFilter);
+  const sourceIds = [...new Set(visible.map(o => o.sourceId))];
+  if (!sourceIds.includes(activeOpsSource)) activeOpsSource = sourceIds[0] || '';
+  const sources = yearCrop().filter(c => sourceIds.includes(c.id));
+  const selected = visible.filter(o => o.sourceId === activeOpsSource);
+  const crops = [...new Set(all.map(o => o.crop))].sort();
+  const backendNote = settings.disconnected
+    ? `<div class="flag-item"><div class="flag-dot amber"></div><div><div class="flag-title">Local preview</div><div class="flag-desc">Operations are saved on this device only while sync is disconnected.</div></div></div>`
+    : operationsBackendReady ? '' : `<div class="flag-item"><div class="flag-dot amber"></div><div><div class="flag-title">Operations sync awaiting backend v3.1</div><div class="flag-desc">Do not use this release live until the updated Apps Script has been deployed.</div></div></div>`;
+  document.getElementById('tab-operations').innerHTML = `
+    <div class="toolbar">
+      <div class="section-title" style="flex:1;border:none;margin:0">Crop Assurance — ${activeYear}</div>
+      <span class="op-pill">${OP_TEMPLATE_VERSION}</span>
+      <span class="op-pill">Device: ${esc(settings.userName)}</span>
+    </div>
+    ${backendNote ? `<div class="flags-box">${backendNote}</div>` : ''}
+    <div class="cards">
+      <div class="card"><div class="label">Passed</div><div class="value">${counts.passed}/${counts.total}</div><div class="sub">quality standard completed</div></div>
+      <div class="card ${counts.overdue?'deficit':''}"><div class="label">Overdue</div><div class="value">${counts.overdue}</div><div class="sub">open operations</div></div>
+      <div class="card"><div class="label">Due next 7 days</div><div class="value">${counts.due}</div><div class="sub">plan resources now</div></div>
+      <div class="card"><div class="label">Attention / verify</div><div class="value">${counts.attention}</div><div class="sub">needs a decision</div></div>
+    </div>
+    <div class="ops-toolbar">
+      <select aria-label="Operation view" onchange="setOpsFilter('status',this.value)">
+        ${['Attention','Next 7 days','Open','Complete','All'].map(x=>`<option${activeOpsFilter===x?' selected':''}>${x}</option>`).join('')}
+      </select>
+      <select aria-label="Crop filter" onchange="setOpsFilter('crop',this.value)">
+        ${['All',...crops].map(x=>`<option${activeOpsCrop===x?' selected':''}>${esc(x)}</option>`).join('')}
+      </select>
+      <select aria-label="Responsibility filter" onchange="setOpsFilter('person',this.value)">
+        ${['All','Unassigned',...OP_TEAM].map(x=>`<option${activeOpsPerson===x?' selected':''}>${esc(x)}</option>`).join('')}
+      </select>
+      <span style="font-size:12px;color:var(--muted)">${visible.length} operation${visible.length===1?'':'s'} in view</span>
+    </div>
+    ${visible.length ? `<div class="ops-board">
+      <div class="ops-paddocks">${sources.map(c => opSourceButton(c,visible)).join('')}</div>
+      <div class="ops-list">${renderOperationList(selected)}</div>
+    </div>` : `<div class="ops-empty">Nothing matches this view. Change a filter or open the full programme.</div>`}
+  `;
+}
+function opSourceButton(c, visible) {
+  const all = sourceOperations(c.id);
+  const shown = visible.filter(o => o.sourceId === c.id);
+  const progress = opSourceProgress(c.id);
+  const urgent = shown.filter(o => ['attention','verify','overdue'].includes(opDueState(o))).length;
+  return `<button class="ops-paddock${activeOpsSource===c.id?' active':''}" onclick="selectOpsSource('${c.id}')">
+    <div class="ops-paddock-title"><span>${esc(c.paddock)}</span><span>${progress.passed}/${progress.total}</span></div>
+    <div class="ops-paddock-meta"><span>${esc(c.crop)}</span><span>${urgent ? urgent+' urgent' : shown.length+' shown'}</span></div>
+    <div class="ops-progress"><span style="width:${progress.pct}%"></span></div>
+  </button>`;
+}
+function renderOperationList(list) {
+  if (!list.length) return `<div class="ops-empty">No operations for this paddock match the selected view.</div>`;
+  let lastStage = '';
+  return list.map(o => {
+    const stage = o.stage !== lastStage ? `<div class="ops-stage">${esc(o.stage)}</div>` : '';
+    lastStage = o.stage;
+    return stage + operationCard(o);
+  }).join('');
+}
+function operationCard(o) {
+  const state = opDueState(o);
+  const checkClass = opPassed(o) ? 'checked' : opNeedsVerification(o) ? 'pending-verify' : '';
+  const checkText = opPassed(o) ? '✓' : opNeedsVerification(o) ? '!' : '';
+  const dueClass = state === 'overdue' ? 'late' : state === 'due' ? 'soon' : '';
+  const assignee = o.assignee || 'Unassigned';
+  return `<div class="op-card ${state}">
+    <button class="op-check ${checkClass}" aria-label="${opPassed(o)?'Reopen':'Complete'} ${esc(o.title)}" onclick="toggleOperation('${o.id}')">${checkText}</button>
+    <div>
+      <div class="op-title">${esc(o.title)}</div>
+      <div class="op-standard">${esc(o.standard)}</div>
+      <div class="op-meta">
+        <span class="${dueClass}">${esc(opDueLabel(o))}</span>
+        <span>${esc(displayAppDate(o.dueDate))}</span>
+        <span>${esc(assignee)}</span>
+        ${o.critical?'<span class="op-pill critical">Record required</span>':''}
+        ${opRequiresVerification(o)?'<span class="op-pill">Quality gate</span>':''}
+        ${o.verifiedAt?`<span class="op-pill verified">Verified by ${esc(o.verifiedBy)}</span>`:''}
+      </div>
+    </div>
+    <div class="op-actions">
+      <button class="btn btn-ghost btn-sm" onclick="openOperation('${o.id}')">Details</button>
+      ${opNeedsVerification(o)?`<button class="btn btn-primary btn-sm" onclick="verifyOperation('${o.id}')">Verify</button>`:''}
+    </div>
+  </div>`;
+}
+function openOperation(id) {
+  const o = operations.find(x => x.id === id);
+  if (!o) return;
+  openOperationId = id;
+  document.getElementById('opModalTitle').textContent = `${o.paddock} — ${o.title}`;
+  const audit = opAuditEntries(o);
+  document.getElementById('opModalBody').innerHTML = `
+    <div class="pdkSect">
+      <div class="op-modal-grid">
+        <div class="form-group"><label>Paddock / crop</label><input value="${esc(o.paddock)} — ${esc(o.crop)}" disabled></div>
+        <div class="form-group"><label>Standard</label><input value="${esc(o.templateVersion)}" disabled></div>
+        <div class="form-group"><label>Responsible</label><select id="op-assignee">
+          <option value="">Unassigned</option>${OP_TEAM.map(x=>`<option${o.assignee===x?' selected':''}>${x}</option>`).join('')}
+        </select></div>
+        <div class="form-group"><label>Target date</label><input id="op-due" type="date" value="${esc(o.dueDate)}"></div>
+        <div class="form-group"><label>Status</label><select id="op-status">
+          ${OP_STATUSES.map(x=>`<option${o.status===x?' selected':''}>${x}</option>`).join('')}
+        </select></div>
+        <div class="form-group"><label>Stage</label><input value="${esc(o.stage)}" disabled></div>
+        <div class="form-group wide"><label>Required standard</label><textarea disabled style="min-height:82px">${esc(o.standard)}</textarea></div>
+        <div class="form-group wide"><label>Result / application record${o.critical?' — required to complete':''}</label><textarea id="op-record" style="min-height:110px" placeholder="Record the decision, measurements, products, rates, conditions or outcome needed to prove this standard was met.">${esc(o.record)}</textarea></div>
+        <div class="form-group wide"><label>Notes / follow-up</label><textarea id="op-notes" style="min-height:80px">${esc(o.notes)}</textarea></div>
+        <div class="form-group wide"><label>Completion</label><div class="op-audit">
+          ${o.completedAt ? `Completed by ${esc(o.completedBy)} on ${esc(new Date(o.completedAt).toLocaleString('en-NZ'))}.` : 'Not completed.'}
+          ${o.verifiedAt ? `<br>Verified by ${esc(o.verifiedBy)} on ${esc(new Date(o.verifiedAt).toLocaleString('en-NZ'))}.` : opRequiresVerification(o) ? '<br>Quality verification is required.' : ''}
+        </div></div>
+        <div class="form-group wide"><label>Recent activity</label><div class="op-audit">
+          ${audit.length ? audit.slice(0,6).map(a=>`${esc(new Date(a.at).toLocaleString('en-NZ'))} — ${esc(a.by)}: ${esc(a.action)}`).join('<br>') : 'No activity recorded yet.'}
+        </div></div>
+      </div>
+    </div>
+    <div class="op-modal-actions">
+      ${o.status==='Complete' && opRequiresVerification(o) && !o.verifiedAt ? `<button class="btn btn-primary" onclick="verifyOperation('${o.id}')">Verify quality gate</button>` : ''}
+      ${opPassed(o) ? `<button class="btn btn-ghost" onclick="reopenOperation('${o.id}')">Reopen</button>` : ''}
+      <button class="btn btn-ghost" onclick="closeOperation()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveOperationDetails()">Save operation</button>
+    </div>`;
+  document.getElementById('opModal').classList.add('open');
+}
+function closeOperation() {
+  document.getElementById('opModal').classList.remove('open');
+  openOperationId = '';
+}
+function saveOperationDetails() {
+  const o = operations.find(x => x.id === openOperationId);
+  if (!o) return;
+  const baseUpdatedAt = n(o.updatedAt);
+  const nextStatus = document.getElementById('op-status').value;
+  const nextRecord = document.getElementById('op-record').value.trim();
+  if (o.critical && ['Complete','N/A'].includes(nextStatus) && !nextRecord) {
+    alert('Record the result or reason before completing this quality-critical operation.');
+    return;
+  }
+  const previousStatus = o.status;
+  o.assignee = document.getElementById('op-assignee').value;
+  o.dueDate = document.getElementById('op-due').value;
+  o.status = nextStatus;
+  o.record = nextRecord;
+  o.notes = document.getElementById('op-notes').value.trim();
+  if (nextStatus === 'Complete' && previousStatus !== 'Complete') {
+    o.completedAt = new Date().toISOString();
+    o.completedBy = settings.userName || 'Unknown';
+    o.verifiedAt = '';
+    o.verifiedBy = '';
+  } else if (!['Complete','N/A'].includes(nextStatus) && ['Complete','N/A'].includes(previousStatus)) {
+    o.completedAt = '';
+    o.completedBy = '';
+    o.verifiedAt = '';
+    o.verifiedBy = '';
+  }
+  touchOperation(o, previousStatus === nextStatus ? 'Details updated' : `Status changed from ${previousStatus} to ${nextStatus}`, baseUpdatedAt);
+  closeOperation();
+  renderOperations();
+}
+function toggleOperation(id) {
+  const o = operations.find(x => x.id === id);
+  if (!o) return;
+  if (o.status === 'Complete' || o.status === 'N/A') {
+    reopenOperation(id);
+    return;
+  }
+  if (o.critical) {
+    openOperation(id);
+    const status = document.getElementById('op-status');
+    if (status) status.value = 'Complete';
+    return;
+  }
+  const baseUpdatedAt = n(o.updatedAt);
+  o.status = 'Complete';
+  o.completedAt = new Date().toISOString();
+  o.completedBy = settings.userName || 'Unknown';
+  touchOperation(o, 'Completed', baseUpdatedAt);
+  renderOperations();
+}
+function reopenOperation(id) {
+  const o = operations.find(x => x.id === id);
+  if (!o) return;
+  const baseUpdatedAt = n(o.updatedAt);
+  o.status = 'In progress';
+  o.completedAt = '';
+  o.completedBy = '';
+  o.verifiedAt = '';
+  o.verifiedBy = '';
+  touchOperation(o, 'Reopened', baseUpdatedAt);
+  closeOperation();
+  renderOperations();
+}
+function verifyOperation(id) {
+  const o = operations.find(x => x.id === id);
+  if (!o || o.status !== 'Complete') return;
+  if (o.critical && !String(o.record || '').trim()) {
+    alert('The result or application record is required before verification.');
+    openOperation(id);
+    return;
+  }
+  const verifier = settings.userName || 'Unknown';
+  if (o.completedBy && verifier === o.completedBy) {
+    alert(o.completedBy + ' completed this operation and cannot also verify it. A different person must sign off the quality gate — verify it on their device (set who a device belongs to in Settings).');
+    return;
+  }
+  const baseUpdatedAt = n(o.updatedAt);
+  o.verifiedAt = new Date().toISOString();
+  o.verifiedBy = verifier;
+  touchOperation(o, 'Quality gate verified', baseUpdatedAt);
+  closeOperation();
+  renderOperations();
+}
+function queueOperationPush(o, baseUpdatedAt) {
+  if (!settings.scriptUrl || settings.disconnected) return;
+  const existing = opPushPending.get(o.id);
+  opPushPending.set(o.id, { row:{...o}, baseUpdatedAt:existing ? existing.baseUpdatedAt : baseUpdatedAt });
+  if (!operationsBackendReady) {
+    logSync('Operation saved locally; shared sync is waiting for backend v3.1.');
+    return;
+  }
+  clearTimeout(opPushTimer);
+  opPushTimer = setTimeout(flushOperationPush, 700);
+}
+async function flushOperationPush() {
+  if (!opPushPending.size || !settings.scriptUrl || settings.disconnected) return;
+  const batch = [...opPushPending.values()];
+  opPushPending.clear();
+  setSyncPill('info','Saving operation...');
+  try {
+    const res = await fetch(settings.scriptUrl, { method:'POST', body:JSON.stringify({ action:'upsertOperations', operations:batch }) });
+    const d = await res.json();
+    if (d.error) throw new Error(d.error);
+    if (!d.operationsSupported) throw new Error('Apps Script v3.1 is not deployed');
+    operationsBackendReady = true;
+    if (Array.isArray(d.conflicts) && d.conflicts.length) {
+      d.conflicts.forEach(serverRow => {
+        normaliseOperation(serverRow);
+        const i = operations.findIndex(o => o.id === serverRow.id);
+        if (i >= 0) operations[i] = serverRow;
+      });
+      saveLocal();
+      logSync('Operation conflict: the newer shared record was kept. Re-check the task.');
+    } else {
+      logSync('Operation saved by ' + (settings.userName || 'Unknown'));
+    }
+    lastTs = d.lastModified || lastTs;
+    localStorage.setItem(NS+'lastTs', lastTs);
+    setSyncPill('ok','Synced');
+  } catch(e) {
+    batch.forEach(item => {
+      const current = opPushPending.get(item.row.id);
+      if (!current) opPushPending.set(item.row.id,item);
+    });
+    setSyncPill('warn','Operation not shared');
+    logSync('Operation saved locally; shared sync failed: ' + e.message);
+  }
+  if (activeTab === 'operations') renderOperations();
+}
 
 // -- COMPUTED TOTALS (operate on active year only) --
 function wasteFactor(c)     { return 1 - n(c.wastage) / 100; }
@@ -730,7 +1365,7 @@ function showTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
-  const idx = ['dashboard','crop','paddocks','stock','feed','pasture','regrass','financial','gm','history','ai','settings'].indexOf(name);
+  const idx = ['dashboard','crop','operations','paddocks','stock','feed','pasture','regrass','financial','gm','history','ai','settings'].indexOf(name);
   document.querySelectorAll('nav button')[idx].classList.add('active');
   renderTab(name);
 }
@@ -738,6 +1373,7 @@ function showTab(name) {
 function renderTab(name) {
   if (name === 'dashboard')  renderDashboard();
   if (name === 'crop')       renderCrop();
+  if (name === 'operations') renderOperations();
   if (name === 'paddocks')   renderPaddocks();
   if (name === 'stock')      renderStock();
   if (name === 'feed')       renderFeed();
@@ -763,6 +1399,7 @@ function renderDashboard() {
   const pct = dem > 0 ? Math.min(100, Math.round(sup/dem*100)) : 0;
   const flags = buildFlags();
   const cp = yearCrop();
+  const ops = operationCounts();
 
   document.getElementById('tab-dashboard').innerHTML = `
     <div class="cards">
@@ -790,6 +1427,11 @@ function renderDashboard() {
         <div class="label">Programme Cost</div>
         <div class="value">${fmt$(totalCropCost() + totalSuppCost())}</div>
         <div class="sub">${activeYear} budget</div>
+      </div>
+      <div class="card ${ops.overdue?'deficit':''}" onclick="showTab('operations')" style="cursor:pointer">
+        <div class="label">Crop Assurance</div>
+        <div class="value">${ops.passed}/${ops.total}</div>
+        <div class="sub">${ops.overdue} overdue · ${ops.attention} attention/verify</div>
       </div>
     </div>
 
@@ -852,6 +1494,9 @@ function buildFlags() {
   if (sr.length === 0) flags.push({ level:'amber', title:'No stock entered', desc:'Add stock classes in Stock Req to calculate feed demand.' });
   if (cp.length === 0) flags.push({ level:'amber', title:'No crop plan entered', desc:'Add paddocks in Crop Plan to calculate feed supply.' });
   if (activeYear >= '2026/27' && cp.length > 0 && yearPasture().length === 0) flags.push({ level:'amber', title:'No pasture supply entered', desc:'Winter pasture (saved + grown) is missing from supply — add blocks in the Pasture tab.' });
+  const ops = operationCounts();
+  if (ops.overdue > 0) flags.push({ level:'red', title:`${ops.overdue} crop operation${ops.overdue===1?'':'s'} overdue`, desc:'Open Crop Assurance to assign, complete or reschedule the outstanding field work.' });
+  if (ops.attention > 0) flags.push({ level:'amber', title:`${ops.attention} operation${ops.attention===1?'':'s'} need attention or verification`, desc:'Resolve exceptions and verify completed quality gates in Crop Assurance.' });
   return flags;
 }
 
@@ -923,10 +1568,10 @@ function cropRow(c) {
     ? `<span style="color:${deltaPct>=0?'var(--ok)':'var(--danger)'};font-weight:700">${deltaPct>=0?'+':''}${deltaPct}%</span>`
     : `<span style="color:var(--muted)">—</span>`;
   return `<tr class="data-row" id="cr-${c.id}">
-    <td><input value="${c.paddock||''}" onchange="updateCrop('${c.id}','paddock',this.value)" placeholder="Paddock name"${dis}></td>
+    <td><input value="${c.paddock||''}" oninput="updateCropDraft('${c.id}','paddock',this.value)" onchange="updateCrop('${c.id}','paddock',this.value)" placeholder="Paddock name"${dis}></td>
     <td><select onchange="cropTypeChanged('${c.id}',this.value)"${dis}>${opts}</select></td>
     <td><input class="num" type="number" value="${c.ha||''}" onchange="updateCropCalc('${c.id}','ha',this.value)" style="width:60px"${dis}></td>
-    <td><input value="${c.drillDate||''}" onchange="updateCrop('${c.id}','drillDate',this.value)" placeholder="dd/mm/yy" style="width:80px"${dis}></td>
+    <td><input value="${c.drillDate||''}" oninput="updateCropDraft('${c.id}','drillDate',this.value)" onchange="updateCrop('${c.id}','drillDate',this.value)" placeholder="dd/mm/yy" style="width:80px"${dis}></td>
     <td><select onchange="updateCrop('${c.id}','winterUse',this.value);renderCrop()" style="width:105px;${countsWinter(c)?'':'color:var(--warn);font-weight:600'}"${dis}>${WINTER_USES.map(u => `<option${(c.winterUse||'Winter feed')===u?' selected':''}>${u}</option>`).join('')}</select></td>
     <td><input class="num" type="number" value="${c.yieldKgHA||''}" onchange="updateCropCalc('${c.id}','yieldKgHA',this.value)" style="width:80px"${dis}></td>
     <td><input class="num" type="number" value="${act !== null ? act : ''}" onchange="updateActualYield('${c.id}',this.value)" placeholder="actual" style="width:80px;border-color:${act!==null?'var(--lime)':'var(--border)'}"${dis}></td>
@@ -983,7 +1628,11 @@ function addCropRow() {
 
 function updateCrop(id, field, val) {
   const c = cropPlan.find(x => x.id === id);
-  if (c) { c[field] = val; save(); }
+  if (c) {
+    c[field] = val;
+    if (['paddock','drillDate'].includes(field)) ensureOperationsForSeason(true);
+    save();
+  }
 }
 
 function updateCropCalc(id, field, val) {
@@ -1001,12 +1650,14 @@ function cropTypeChanged(id, crop) {
   c.crop = crop;
   const gm = gmDefaults(crop);
   if (gm) { c.yieldKgHA = gm.yieldKgHA; c.wastage = gm.wastage; c.seedHA = gm.seedHA; c.chemHA = gm.chemHA; c.fertHA = gm.fertHA; c.opsHA = gm.opsHA; }
+  ensureOperationsForSeason(true);
   save();
   renderCrop();
 }
 
 function deleteCrop(id) {
   cropPlan = cropPlan.filter(x => x.id !== id);
+  ensureOperationsForSeason(true);
   save();
   renderCrop();
 }
@@ -2022,6 +2673,11 @@ function renderSettings() {
     <div class="settings-grid">
       <div>
         <div class="form-group">
+          <label>This device is used by</label>
+          <select id="s-user">${OP_TEAM.map(x=>`<option${settings.userName===x?' selected':''}>${x}</option>`).join('')}</select>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin:-4px 0 14px">Completion, verification and changes are recorded under this name. Set Doug on his device and Brendon on yours.</div>
+        <div class="form-group">
           <label>Apps Script URL</label>
           <input id="s-url" value="${settings.scriptUrl||''}" placeholder="https://script.google.com/macros/s/...">
         </div>
@@ -2071,13 +2727,18 @@ function renderSettings() {
 
 function saveSettings() {
   settings.scriptUrl    = document.getElementById('s-url')?.value || '';
-  settings.disconnected = false;
+  settings.userName     = document.getElementById('s-user')?.value || 'Brendon';
+  settings.disconnected = location.protocol === 'file:' || ['localhost','127.0.0.1'].includes(location.hostname);
   save();
   startPoll();
   logSync('Settings saved');
 }
 
 function toggleDisconnect() {
+  if (location.protocol === 'file:' || ['localhost','127.0.0.1'].includes(location.hostname)) {
+    alert('Sync stays disconnected in local preview to protect live farm data.');
+    return;
+  }
   settings.disconnected = !settings.disconnected;
   save();
   renderSettings();
@@ -2495,11 +3156,12 @@ function closeReport() {
 function setReportPreset(preset) {
   const setChk = (id, v) => { const el = document.getElementById(id); if (el) el.checked = v; };
   if (preset === 'full') {
-    ['summary','crop','regrass','stock','feed','financial'].forEach(s => setChk('rpt-s-'+s, true));
+    ['summary','crop','operations','regrass','stock','feed','financial'].forEach(s => setChk('rpt-s-'+s, true));
     setChk('rpt-costs', true);
-  } else if (preset === 'agronomist') {
+  } else if (preset === 'field') {
     setChk('rpt-s-summary', true);
     setChk('rpt-s-crop', true);
+    setChk('rpt-s-operations', true);
     setChk('rpt-s-regrass', true);
     setChk('rpt-s-stock', false);
     setChk('rpt-s-feed', false);
@@ -2522,10 +3184,11 @@ function buildReport() {
   const costs = rptChecked('rpt-costs');
   let html = `
     <h1>Peel Forest Estate — Cropping Programme ${activeYear}</h1>
-    <div class="rpt-meta">Prepared by Brendon Graham · ${new Date().toLocaleDateString('en-NZ', { day:'numeric', month:'long', year:'numeric' })} · PFE Cropping v${APP_VER}</div>`;
+    <div class="rpt-meta">Prepared by Peel Forest Estate · ${new Date().toLocaleDateString('en-NZ', { day:'numeric', month:'long', year:'numeric' })} · PFE Cropping v${APP_VER}</div>`;
 
   if (rptChecked('rpt-s-summary'))   html += rptSummary(costs);
   if (rptChecked('rpt-s-crop'))      html += rptCropPlan(costs);
+  if (rptChecked('rpt-s-operations')) html += rptOperations();
   if (rptChecked('rpt-s-regrass'))   html += rptRegrass(costs);
   if (rptChecked('rpt-s-stock'))     html += rptStock();
   if (rptChecked('rpt-s-feed'))      html += rptFeed();
@@ -2607,6 +3270,45 @@ function rptRegrass(costs) {
       <tbody>${rows}<tr class="rpt-tot"><td>Total</td><td></td><td class="rpt-r">${totalRegrassHa().toFixed(1)}</td><td></td>${totCost}<td></td></tr></tbody>
     </table>
     <p class="rpt-note">Regrassing is pasture renewal — costs only, not part of the winter feed supply.</p>`;
+}
+
+function updateCropDraft(id, field, val) {
+  const c = cropPlan.find(x => x.id === id);
+  if (!c) return;
+  c[field] = val;
+  if (['paddock','drillDate'].includes(field)) ensureOperationsForSeason();
+  saveLocal();
+}
+
+function rptOperations() {
+  const list = yearOperations();
+  if (!list.length) return '';
+  const counts = operationCounts(list);
+  let rows = '';
+  yearCrop().forEach(c => {
+    const tasks = sourceOperations(c.id);
+    if (!tasks.length) return;
+    const p = opSourceProgress(c.id);
+    rows += `<tr class="rpt-tot"><td colspan="7">${esc(c.paddock)} — ${esc(c.crop)} · ${p.passed}/${p.total} passed</td></tr>`;
+    tasks.forEach(o => {
+      const status = opNeedsVerification(o) ? 'Awaiting verification' : o.status;
+      const completed = o.completedAt ? `${displayAppDate(o.completedAt)} · ${esc(o.completedBy)}` : '—';
+      const verified = o.verifiedAt ? `${displayAppDate(o.verifiedAt)} · ${esc(o.verifiedBy)}` : opRequiresVerification(o) ? 'Required' : '—';
+      rows += `<tr>
+        <td>${esc(o.stage)}</td><td>${esc(o.title)}</td><td>${esc(displayAppDate(o.dueDate))}</td>
+        <td>${esc(o.assignee || 'Unassigned')}</td><td>${esc(status)}</td>
+        <td>${completed}<br><span style="font-size:10px;color:#666">Verify: ${verified}</span></td>
+        <td>${esc(o.record || o.notes || '')}</td>
+      </tr>`;
+    });
+  });
+  return `
+    <h2>Crop Assurance — ${activeYear}</h2>
+    <p class="rpt-note">${OP_TEMPLATE_VERSION} · ${counts.passed}/${counts.total} passed · ${counts.overdue} overdue · ${counts.attention} attention or verification.</p>
+    <table>
+      <thead><tr><th>Stage</th><th>Operation</th><th>Target</th><th>Responsible</th><th>Status</th><th>Completion</th><th>Record / notes</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }
 
 function rptStock() {
@@ -2716,6 +3418,11 @@ async function pullFromSheet() {
     const res = await fetch(settings.scriptUrl + '?action=pull', { cache: 'no-store' });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
+    operationsBackendReady = !!data.operationsSupported;
+    if (operationsBackendReady && opPushPending.size) {
+      clearTimeout(opPushTimer);
+      opPushTimer = setTimeout(flushOperationPush,700);
+    }
     if (Array.isArray(data.cropPlan) && data.cropPlan.length) {
       data.cropPlan.forEach(c => {
         if (c.opsHA && YEAR_PAT.test(c.opsHA) && c.opsHA !== c.year) { c.year = c.opsHA; c.opsHA = ''; }
@@ -2741,6 +3448,11 @@ async function pullFromSheet() {
     if (Array.isArray(data.regrass) && data.regrass.length) {
       data.regrass.forEach(r => { if (!r.year) r.year = YEAR; });
       regrass = data.regrass;
+    }
+    if (Array.isArray(data.operations)) {
+      data.operations.forEach(normaliseOperation);
+      operations = data.operations;
+      ensureOperationsForSeason();
     }
     if (Array.isArray(data.paddocks)   && data.paddocks.length)   paddocks   = data.paddocks;
     if (Array.isArray(data.soilTests)  && data.soilTests.length)  soilTests  = data.soilTests;
