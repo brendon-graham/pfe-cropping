@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="app-version" content="3.1.0">
+<meta name="app-version" content="3.1.1">
 <title>PFE Cropping</title>
 <style>
 :root {
@@ -261,7 +261,7 @@ td input.num { text-align: right; }
 
 <header>
   <h1>PFE Cropping</h1>
-  <span class="app-ver">v3.1.0</span>
+  <span class="app-ver">v3.1.1</span>
   <select id="year-sel" class="year-sel" onchange="changeYear(this.value)"></select>
   <button class="btn-new-yr" onclick="newYear()">+ Season</button>
   <button class="btn-new-yr" onclick="openReport()">⎙ Report</button>
@@ -346,7 +346,7 @@ td input.num { text-align: right; }
 
 <script>
 // -- CONSTANTS --
-const APP_VER = '3.1.0';
+const APP_VER = '3.1.1';
 const NS = 'crop2_';
 const YEAR = '2026/27';
 const YEAR_PAT = /^\d{4}\/\d{2}$/;
@@ -2903,8 +2903,8 @@ function renderPaddocks() {
       <td style="font-size:11px;color:var(--muted)">${p.soilType ? p.soilType.split('_')[0] : '—'}</td>
       <td>${lc ? `<span class="tag ${CROP_TAG[lc.crop]||'tag-other'}">${lc.crop}</span> <span style="font-size:11px;color:var(--muted)">${lc.year}</span>` : '<span style="color:var(--muted);font-size:12px">—</span>'}</td>
       <td style="text-align:center;font-size:12px">${seasons.length || '—'}</td>
-      <td style="font-size:12px">${lastTest ? lastTest.date + ' pH&nbsp;' + lastTest.pH : '<span style="color:var(--muted)">—</span>'}</td>
-      <td style="font-size:12px">${lastLime ? lastLime.date + ' ' + lastLime.rateT + 't' : '<span style="color:var(--muted)">—</span>'}</td>
+      <td style="font-size:12px">${lastTest ? displayAppDate(lastTest.date) + ' pH&nbsp;' + lastTest.pH : '<span style="color:var(--muted)">—</span>'}</td>
+      <td style="font-size:12px">${lastLime ? displayAppDate(lastLime.date) + ((lastLime.rateT===''||lastLime.rateT==null)?'':' ' + lastLime.rateT + 't') : '<span style="color:var(--muted)">—</span>'}</td>
       <td><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openPaddock('${p.id}')">Open</button></td>
     </tr>`;
   }).join('');
@@ -2982,7 +2982,7 @@ function renderPaddockDetail(id) {
     const Sc   = sbClass(t.ss,    15,  10);
     const Cac  = sbClass(t.qtCa,  10,  8);
     return `<tr>
-      <td style="font-size:12px">${t.date}</td>
+      <td style="font-size:12px">${displayAppDate(t.date)}</td>
       <td style="text-align:center"><span class="sb ${pHc}">${t.pH||'—'}</span></td>
       <td style="text-align:center"><span class="sb ${Pc}">${t.olsenP||'—'}</span></td>
       <td style="text-align:center"><span class="sb ${Kc}">${t.qtK||'—'}</span></td>
@@ -2997,8 +2997,8 @@ function renderPaddockDetail(id) {
   const limes = limeEvents.filter(l => l.paddockId === id).sort((a,b) => b.date.localeCompare(a.date));
   const limeRows = limes.length ? limes.map(l => {
     return `<tr>
-      <td style="font-size:12px">${l.date}</td>
-      <td style="text-align:right;font-weight:700">${l.rateT}t</td>
+      <td style="font-size:12px">${displayAppDate(l.date)}</td>
+      <td style="text-align:right;font-weight:700">${(l.rateT===''||l.rateT==null)?'<span style="color:var(--muted)">—</span>':l.rateT+'t'}</td>
       <td style="font-size:11px;color:var(--muted)">${l.notes||''}</td>
       <td><button class="del-btn" onclick="deleteLimeEvent('${l.id}','${id}')">✕</button></td>
     </tr>`;
