@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="app-version" content="3.1.1">
+<meta name="app-version" content="3.1.2">
 <title>PFE Cropping</title>
 <style>
 :root {
@@ -261,7 +261,7 @@ td input.num { text-align: right; }
 
 <header>
   <h1>PFE Cropping</h1>
-  <span class="app-ver">v3.1.1</span>
+  <span class="app-ver">v3.1.2</span>
   <select id="year-sel" class="year-sel" onchange="changeYear(this.value)"></select>
   <button class="btn-new-yr" onclick="newYear()">+ Season</button>
   <button class="btn-new-yr" onclick="openReport()">⎙ Report</button>
@@ -346,7 +346,7 @@ td input.num { text-align: right; }
 
 <script>
 // -- CONSTANTS --
-const APP_VER = '3.1.1';
+const APP_VER = '3.1.2';
 const NS = 'crop2_';
 const YEAR = '2026/27';
 const YEAR_PAT = /^\d{4}\/\d{2}$/;
@@ -2106,7 +2106,7 @@ function regrassRow(r) {
     <td><input value="${r.paddock||''}" onchange="updateRegrass('${r.id}','paddock',this.value)" placeholder="Paddock name" style="min-width:120px"${dis}></td>
     <td><select onchange="regrassMixChanged('${r.id}',this.value)" style="min-width:120px"${dis}>${opts}</select></td>
     <td><input class="num" type="number" value="${r.ha||''}" onchange="updateRegrassCalc('${r.id}','ha',this.value)" style="width:60px"${dis}></td>
-    <td><input value="${r.drillDate||''}" onchange="updateRegrass('${r.id}','drillDate',this.value)" placeholder="dd/mm/yy" style="width:80px"${dis}></td>
+    <td><input type="date" value="${(r.drillDate||'').slice(0,10)}" onchange="updateRegrass('${r.id}','drillDate',this.value?this.value+'T12:00:00.000Z':'')" style="width:135px"${dis}></td>
     <td><input class="num" type="number" value="${r.seedHA||''}" onchange="updateRegrassCalc('${r.id}','seedHA',this.value)" style="width:70px"${dis}></td>
     <td><input class="num" type="number" value="${r.chemHA||''}" onchange="updateRegrassCalc('${r.id}','chemHA',this.value)" style="width:70px"${dis}></td>
     <td><input class="num" type="number" value="${r.fertHA||''}" onchange="updateRegrassCalc('${r.id}','fertHA',this.value)" style="width:70px"${dis}></td>
