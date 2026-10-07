@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="app-version" content="3.1.2">
+<meta name="app-version" content="3.2.0">
 <title>PFE Cropping</title>
 <style>
 :root {
@@ -261,7 +261,7 @@ td input.num { text-align: right; }
 
 <header>
   <h1>PFE Cropping</h1>
-  <span class="app-ver">v3.1.2</span>
+  <span class="app-ver">v3.2.0</span>
   <select id="year-sel" class="year-sel" onchange="changeYear(this.value)"></select>
   <button class="btn-new-yr" onclick="newYear()">+ Season</button>
   <button class="btn-new-yr" onclick="openReport()">⎙ Report</button>
@@ -1246,6 +1246,7 @@ async function flushOperationPush() {
   if (!opPushPending.size || !settings.scriptUrl || settings.disconnected) return;
   const batch = [...opPushPending.values()];
   opPushPending.clear();
+  opInFlight = new Map(batch.map(item => [item.row.id, item]));
   setSyncPill('info','Saving operation...');
   try {
     const res = await fetch(settings.scriptUrl, { method:'POST', body:JSON.stringify({ action:'upsertOperations', operations:batch }) });
@@ -1264,8 +1265,8 @@ async function flushOperationPush() {
     } else {
       logSync('Operation saved by ' + (settings.userName || 'Unknown'));
     }
-    lastTs = d.lastModified || lastTs;
-    localStorage.setItem(NS+'lastTs', lastTs);
+    // Don't advance lastTs here: the sheet may also hold another device's crop-plan save this
+    // device hasn't pulled yet. The next poll/push merges it properly.
     setSyncPill('ok','Synced');
   } catch(e) {
     batch.forEach(item => {
@@ -1275,6 +1276,7 @@ async function flushOperationPush() {
     setSyncPill('warn','Operation not shared');
     logSync('Operation saved locally; shared sync failed: ' + e.message);
   }
+  opInFlight = new Map();
   if (activeTab === 'operations') renderOperations();
 }
 
@@ -3411,11 +3413,75 @@ function isEditing() {
   return !!a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT');
 }
 
+// -- MERGE SYNC (v3.2.0) --
+// The sheet is one shared copy; every device keeps a "base" snapshot of what the sheet held
+// when it last synced. Local edits = local minus base. On every pull (and on a stale push)
+// those edits are re-applied field-by-field on top of the sheet's latest data, so an edit is
+// never thrown away just because another device — or this device's own Operations save —
+// bumped the sheet timestamp first (the "it reverts when it syncs" bug).
+const SYNC_SECTIONS = {
+  cropPlan:    [() => cropPlan,    v => cropPlan = v],
+  stockReq:    [() => stockReq,    v => stockReq = v],
+  supplements: [() => supplements, v => supplements = v],
+  pasture:     [() => pasture,     v => pasture = v],
+  regrass:     [() => regrass,     v => regrass = v],
+  paddocks:    [() => paddocks,    v => paddocks = v],
+  soilTests:   [() => soilTests,   v => soilTests = v],
+  limeEvents:  [() => limeEvents,  v => limeEvents = v],
+  gmItems:     [() => gmItems,     v => gmItems = v]
+};
+let opInFlight = new Map();   // operation rows sent but not yet confirmed
+
+function loadBase() {
+  try { return JSON.parse(localStorage.getItem(NS+'base') || 'null'); } catch(e) { return null; }
+}
+function saveBase(b) { localStorage.setItem(NS+'base', JSON.stringify(b)); }
+function syncSnapshot() {
+  const o = { aiNotes };
+  Object.entries(SYNC_SECTIONS).forEach(([k,[get]]) => o[k] = get());
+  return JSON.parse(JSON.stringify(o));
+}
+// Sheets coerces types (12 vs "12", '' vs null) — compare loosely so that noise isn't an "edit"
+function sameVal(a, b) {
+  const s = v => v === null || v === undefined ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
+  return s(a) === s(b);
+}
+// Returns {rows, changed}. Without a base we can't tell edits from stale data — sheet wins.
+function rebaseSection(server, local, base) {
+  if (!Array.isArray(base)) return { rows: server, changed: false };
+  const baseById  = new Map(base.map(r => [String(r.id), r]));
+  const localById = new Map(local.map(r => [String(r.id), r]));
+  const out = server.map(r => ({ ...r }));
+  const at = new Map(out.map((r,i) => [String(r.id), i]));
+  let changed = false;
+  local.forEach(lr => {
+    const id = String(lr.id);
+    const br = baseById.get(id);
+    if (!br) {                                       // added on this device
+      if (at.has(id)) Object.assign(out[at.get(id)], lr);
+      else { out.push({ ...lr }); at.set(id, out.length - 1); }
+      changed = true;
+      return;
+    }
+    const keys = new Set([...Object.keys(lr), ...Object.keys(br)]);
+    const edits = [...keys].filter(k => !sameVal(lr[k], br[k]));
+    if (!edits.length) return;                       // untouched here — keep the sheet's version
+    changed = true;
+    if (!at.has(id)) { out.push({ ...lr }); at.set(id, out.length - 1); return; }  // edited here, deleted elsewhere — keep the edit
+    const row = out[at.get(id)];
+    edits.forEach(k => row[k] = lr[k]);              // only the fields this device changed
+  });
+  const deleted = new Set([...baseById.keys()].filter(id => !localById.has(id)));
+  if (deleted.size) changed = true;
+  return { rows: out.filter(r => !deleted.has(String(r.id))), changed };
+}
+
 async function pullFromSheet() {
   if (!settings.scriptUrl || settings.disconnected) { renderAll(); return; }
   setSyncPill('info', 'Pulling...');
+  let mergedEdits = false;
   try {
-    const res = await fetch(settings.scriptUrl + '?action=pull', { cache: 'no-store' });
+    const res = await fetch(settings.scriptUrl + '?action=pull&t=' + Date.now(), { cache: 'no-store' });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     operationsBackendReady = !!data.operationsSupported;
@@ -3423,74 +3489,87 @@ async function pullFromSheet() {
       clearTimeout(opPushTimer);
       opPushTimer = setTimeout(flushOperationPush,700);
     }
-    if (Array.isArray(data.cropPlan) && data.cropPlan.length) {
-      data.cropPlan.forEach(c => {
-        if (c.opsHA && YEAR_PAT.test(c.opsHA) && c.opsHA !== c.year) { c.year = c.opsHA; c.opsHA = ''; }
-        if (!c.year) c.year = YEAR;
-        if (c.actualYieldKgHA === undefined) c.actualYieldKgHA = '';
-        if (c.wastage === undefined || c.wastage === null || c.wastage === '') c.wastage = GM[c.crop]?.wastage ?? 15;
-        if (!c.winterUse) c.winterUse = 'Winter feed';
-      });
-      cropPlan = data.cropPlan;
-    }
-    if (Array.isArray(data.stockReq) && data.stockReq.length) {
-      data.stockReq.forEach(r => { if (!r.year) r.year = YEAR; });
-      stockReq = data.stockReq;
-    }
-    if (Array.isArray(data.supplements) && data.supplements.length) {
-      data.supplements.forEach(x => { if (!x.year) x.year = YEAR; });
-      supplements = data.supplements;
-    }
-    if (Array.isArray(data.pasture) && data.pasture.length) {
-      data.pasture.forEach(p => { if (!p.year) p.year = YEAR; });
-      pasture = data.pasture;
-    }
-    if (Array.isArray(data.regrass) && data.regrass.length) {
-      data.regrass.forEach(r => { if (!r.year) r.year = YEAR; });
-      regrass = data.regrass;
-    }
+    // Normalise the sheet's data exactly as load() does, so base and local compare like-for-like
+    (data.cropPlan || []).forEach(c => {
+      if (c.opsHA && YEAR_PAT.test(c.opsHA) && c.opsHA !== c.year) { c.year = c.opsHA; c.opsHA = ''; }
+      if (!c.year) c.year = YEAR;
+      if (c.actualYieldKgHA === undefined) c.actualYieldKgHA = '';
+      if (c.wastage === undefined || c.wastage === null || c.wastage === '') c.wastage = GM[c.crop]?.wastage ?? 15;
+      if (!c.winterUse) c.winterUse = 'Winter feed';
+    });
+    ['stockReq','supplements','pasture','regrass'].forEach(k => (data[k] || []).forEach(r => { if (!r.year) r.year = YEAR; }));
+
+    // Rebase this device's un-synced edits onto the sheet's latest data
+    const base = loadBase();
+    const serverSnap = {};
+    Object.entries(SYNC_SECTIONS).forEach(([k,[get,set]]) => {
+      // Empty sheet section = treat as "no data" (guards against a wiped sheet) — keep local
+      const server = Array.isArray(data[k]) && data[k].length ? data[k] : null;
+      serverSnap[k] = JSON.parse(JSON.stringify(server || (base && base[k]) || get()));
+      if (!server) return;
+      const r = rebaseSection(server, get(), base && base[k]);
+      set(r.rows);
+      if (r.changed) mergedEdits = true;
+    });
+    const sheetNotes = typeof data.aiNotes === 'string' ? data.aiNotes : '';
+    serverSnap.aiNotes = sheetNotes || (base ? base.aiNotes : aiNotes) || '';
+    if (base && !sameVal(aiNotes, base.aiNotes)) mergedEdits = true;
+    else if (sheetNotes) aiNotes = sheetNotes;
+
     if (Array.isArray(data.operations)) {
       data.operations.forEach(normaliseOperation);
       operations = data.operations;
+      // Operation edits still queued / in flight are newer than the sheet — keep them
+      [...opInFlight.values(), ...opPushPending.values()].forEach(item => {
+        const i = operations.findIndex(o => o.id === item.row.id);
+        if (i >= 0) operations[i] = { ...item.row }; else operations.push({ ...item.row });
+      });
       ensureOperationsForSeason();
     }
-    if (Array.isArray(data.paddocks)   && data.paddocks.length)   paddocks   = data.paddocks;
-    if (Array.isArray(data.soilTests)  && data.soilTests.length)  soilTests  = data.soilTests;
-    if (Array.isArray(data.limeEvents) && data.limeEvents.length) limeEvents = data.limeEvents;
-    if (Array.isArray(data.gmItems)    && data.gmItems.length)    gmItems    = data.gmItems;
-    if (typeof data.aiNotes === 'string' && data.aiNotes) aiNotes = data.aiNotes;
     lastTs = data.lastModified || 0;
     localStorage.setItem(NS+'lastTs', lastTs);
+    saveBase(serverSnap);
     saveLocal();
-    setSyncPill('ok', 'Synced');
-    logSync('Pulled ' + new Date().toLocaleTimeString('en-NZ'));
+    setSyncPill(mergedEdits ? 'info' : 'ok', mergedEdits ? 'Saving...' : 'Synced');
+    logSync((mergedEdits ? 'Merged your edits with latest data ' : 'Pulled ') + new Date().toLocaleTimeString('en-NZ'));
   } catch(e) {
     setSyncPill('warn', 'Offline');
     logSync('Pull failed: ' + e.message);
   }
-  renderAll();
+  if (mergedEdits) schedulePush();
+  // Don't yank a field out from under the user mid-typing — render once they leave it
+  if (isEditing()) document.addEventListener('focusout', () => setTimeout(renderAll, 0), { once: true });
+  else renderAll();
 }
 
 async function pushToSheet() {
   if (!settings.scriptUrl || settings.disconnected) { syncPending = false; return; }
+  // Never synced on this device — get the sheet first rather than overwrite it blind
+  if (!lastTs || !loadBase()) { syncPending = false; await pullFromSheet(); return; }
+  const snap = syncSnapshot();
   try {
-    const payload = { cropPlan, stockReq, supplements, pasture, regrass, paddocks, soilTests, limeEvents, gmItems, aiNotes, clientTs: lastTs };
-    const res = await fetch(settings.scriptUrl, { method: 'POST', body: JSON.stringify(payload) });
+    const res = await fetch(settings.scriptUrl, { method: 'POST', body: JSON.stringify({ ...snap, clientTs: lastTs }) });
     const d = await res.json();
     if (d.error) throw new Error(d.error);
     if (d.status === 'stale') {
-      logSync('Conflict: another device saved first — pulled its data. Re-check your last entry.');
+      // Sheet moved on — pull, re-apply this device's edits on top, push again. Nothing is lost.
+      logSync('Sheet changed elsewhere — merging your edits...');
       syncPending = false;
+      pushAgain = false;
       await pullFromSheet();
       return;
     }
     lastTs = d.lastModified || Date.now();
     localStorage.setItem(NS+'lastTs', lastTs);
+    saveBase(snap);
     setSyncPill('ok', 'Synced');
     logSync('Pushed ' + new Date().toLocaleTimeString('en-NZ'));
   } catch(e) {
     setSyncPill('warn', 'Push failed');
-    logSync('Push failed: ' + e.message);
+    logSync('Push failed: ' + e.message + ' — kept on this device, retrying in 30s');
+    syncPending = false;
+    setTimeout(schedulePush, 30000);
+    return;
   }
   syncPending = false;
   if (pushAgain) { pushAgain = false; schedulePush(); }
@@ -3507,7 +3586,7 @@ function startPoll() {
   pollTimer = setInterval(async () => {
     if (syncPending || isEditing()) return;
     try {
-      const res = await fetch(settings.scriptUrl + '?action=pull', { cache: 'no-store' });
+      const res = await fetch(settings.scriptUrl + '?action=pull&t=' + Date.now(), { cache: 'no-store' });
       const d = await res.json();
       // re-check after the fetch — an edit may have started while it was in flight
       if (syncPending || isEditing()) return;
