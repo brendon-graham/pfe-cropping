@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="app-version" content="3.2.0">
+<meta name="app-version" content="3.2.1">
 <title>PFE Cropping</title>
 <style>
 :root {
@@ -261,7 +261,7 @@ td input.num { text-align: right; }
 
 <header>
   <h1>PFE Cropping</h1>
-  <span class="app-ver">v3.2.0</span>
+  <span class="app-ver">v3.2.1</span>
   <select id="year-sel" class="year-sel" onchange="changeYear(this.value)"></select>
   <button class="btn-new-yr" onclick="newYear()">+ Season</button>
   <button class="btn-new-yr" onclick="openReport()">⎙ Report</button>
@@ -682,6 +682,7 @@ let lastTs      = 0;
 let syncPending = false;
 let pushAgain   = false;   // edit landed while a push was already scheduled/in flight
 let pollTimer   = null;
+let pollBusy    = false;   // a poll request is still in flight
 let activeTab   = 'dashboard';
 let activeOpsFilter = 'Attention';
 let activeOpsCrop = 'All';
@@ -2558,6 +2559,7 @@ function renderGM() {
   const perGrown = yieldKg > 0 ? total / yieldKg : null;
   const cropSel  = GM_CROPS.map(c => `<option${c===crop?' selected':''}>${c}</option>`).join('');
   const feeds    = Object.entries(GM_SOURCE).filter(([,v]) => v === crop).map(([k]) => k);
+  const rgMixes  = Object.entries(REGRASS_GM_SOURCE).filter(([,v]) => v === crop).map(([k]) => k);
 
   const catTables = GM_CATS.map(cat => {
     const catItems = items.filter(g => g.category === cat);
@@ -2615,10 +2617,13 @@ function renderGM() {
     ${catTables}
 
     <div style="margin-top:8px;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--muted)">
-      ${feeds.length
-        ? `This GM sets the default Seed / Chem / Fert / Ops $/ha for <strong>${feeds.join(', ')}</strong> rows in the Crop Plan (applied when a paddock is added or its crop type changed).
+      ${feeds.length || rgMixes.length
+        ? `This GM sets the default Seed / Chem / Fert / Ops $/ha for ${[
+             feeds.length ? `<strong>${feeds.join(', ')}</strong> rows in the Crop Plan` : '',
+             rgMixes.length ? `<strong>${rgMixes.join(', ')}</strong> rows in Regrass` : ''
+           ].filter(Boolean).join(' and ')} (applied when a row is added or its type changed). Changed a price? Push it to existing rows:
            <button class="btn btn-sm btn-primary" style="margin-left:8px" onclick="applyGMToSeason()">Apply to ${activeYear} rows</button>`
-        : 'This GM is reference-only — no crop type in the Crop Plan currently maps to it.'}
+        : 'This GM is reference-only — no Crop Plan or Regrass type currently maps to it.'}
     </div>`;
 }
 
@@ -2657,15 +2662,26 @@ function gmYieldChanged(val) {
 
 function applyGMToSeason() {
   if (isSeasonClosed()) { alert(activeYear + ' is locked — unlock it in Crop Plan first.'); return; }
-  const feeds = Object.entries(GM_SOURCE).filter(([,v]) => v === activeGMCrop).map(([k]) => k);
-  const targets = yearCrop().filter(c => feeds.includes(c.crop));
-  if (!targets.length) { alert('No ' + feeds.join('/') + ' rows in ' + activeYear + '.'); return; }
-  const d = gmDefaults(feeds[0]);
-  if (!confirm('Update Seed/Chem/Fert/Ops $/ha on ' + targets.length + ' ' + feeds.join('/') + ' row(s) in ' + activeYear + ' to the current GM figures? Yields and wastage are not changed.')) return;
-  targets.forEach(c => { c.seedHA = d.seedHA; c.chemHA = d.chemHA; c.fertHA = d.fertHA; c.opsHA = d.opsHA; });
+  const feeds   = Object.entries(GM_SOURCE).filter(([,v]) => v === activeGMCrop).map(([k]) => k);
+  const rgMixes = Object.entries(REGRASS_GM_SOURCE).filter(([,v]) => v === activeGMCrop).map(([k]) => k);
+  const cropRows = yearCrop().filter(c => feeds.includes(c.crop));
+  const rgRows   = yearRegrass().filter(r => rgMixes.includes(r.mix));
+  if (!cropRows.length && !rgRows.length) { alert('No ' + [...feeds, ...rgMixes].join('/') + ' rows in ' + activeYear + '.'); return; }
+  const parts = [];
+  if (cropRows.length) parts.push(cropRows.length + ' Crop Plan row(s)');
+  if (rgRows.length)   parts.push(rgRows.length + ' Regrass row(s)');
+  if (!confirm('Update Seed/Chem/Fert/Ops $/ha on ' + parts.join(' and ') + ' in ' + activeYear + ' to the current ' + activeGMCrop + ' GM figures? Yields and wastage are not changed.')) return;
+  if (cropRows.length) {
+    const d = gmDefaults(feeds[0]);
+    cropRows.forEach(c => { c.seedHA = d.seedHA; c.chemHA = d.chemHA; c.fertHA = d.fertHA; c.opsHA = d.opsHA; });
+  }
+  rgRows.forEach(r => {
+    const d = regrassDefaults(r.mix);
+    r.seedHA = d.seedHA; r.chemHA = d.chemHA; r.fertHA = d.fertHA; r.opsHA = d.opsHA;
+  });
   save();
-  logSync('GM costs applied to ' + targets.length + ' row(s) — ' + activeYear);
-  alert('Done — ' + targets.length + ' row(s) updated.');
+  logSync('GM costs applied to ' + parts.join(' + ') + ' — ' + activeYear);
+  alert('Done — ' + parts.join(' and ') + ' updated.');
 }
 
 // -- SETTINGS --
@@ -3476,13 +3492,12 @@ function rebaseSection(server, local, base) {
   return { rows: out.filter(r => !deleted.has(String(r.id))), changed };
 }
 
-async function pullFromSheet() {
+async function pullFromSheet(prefetched) {
   if (!settings.scriptUrl || settings.disconnected) { renderAll(); return; }
   setSyncPill('info', 'Pulling...');
   let mergedEdits = false;
   try {
-    const res = await fetch(settings.scriptUrl + '?action=pull&t=' + Date.now(), { cache: 'no-store' });
-    const data = await res.json();
+    const data = prefetched || await (await fetch(settings.scriptUrl + '?action=pull&t=' + Date.now(), { cache: 'no-store' })).json();
     if (data.error) throw new Error(data.error);
     operationsBackendReady = !!data.operationsSupported;
     if (operationsBackendReady && opPushPending.size) {
@@ -3584,14 +3599,16 @@ function startPoll() {
   clearInterval(pollTimer);
   if (!settings.scriptUrl || settings.disconnected) return;
   pollTimer = setInterval(async () => {
-    if (syncPending || isEditing()) return;
+    // A full pull can take minutes on the Apps Script side — never stack a second one on top
+    if (pollBusy || syncPending || isEditing()) return;
+    pollBusy = true;
     try {
       const res = await fetch(settings.scriptUrl + '?action=pull&t=' + Date.now(), { cache: 'no-store' });
       const d = await res.json();
       // re-check after the fetch — an edit may have started while it was in flight
-      if (syncPending || isEditing()) return;
-      if ((d.lastModified || 0) > lastTs) await pullFromSheet();
+      if (!d.error && !syncPending && (d.lastModified || 0) > lastTs) await pullFromSheet(d);
     } catch(e) {}
+    pollBusy = false;
   }, 30000);
 }
 
