@@ -13,7 +13,7 @@
 
 const CROP_COLS      = ['id','paddock','crop','ha','drillDate','yieldKgHA','wastage','actualYieldKgHA','seedHA','chemHA','fertHA','opsHA','notes','year','winterUse'];
 const STOCK_COLS     = ['id','species','cls','headPrev','headCurr','kgDMday','period','days','feedSource','notes','year'];
-const SUPP_COLS      = ['id','name','type','kgDM','costPerKgDM','notes','year'];
+const SUPP_COLS      = ['id','name','type','kgDM','costPerKgDM','notes','year','wastage'];
 const PADDOCK_COLS   = ['id','name','ha','soilType','notes'];
 const SOILTEST_COLS  = ['id','paddockId','date','pH','olsenP','qtK','ss','qtCa','notes'];
 const LIMEEVENT_COLS = ['id','paddockId','date','rateT','notes'];

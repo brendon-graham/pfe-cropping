@@ -346,7 +346,7 @@ td input.num { text-align: right; }
 
 <script>
 // -- CONSTANTS --
-const APP_VER = '3.2.2';
+const APP_VER = '3.3.0';
 const NS = 'crop2_';
 const YEAR = '2026/27';
 const YEAR_PAT = /^\d{4}\/\d{2}$/;
@@ -1303,7 +1303,10 @@ function cropSupply()       { return winterCrops().reduce((s,c) => s + effective
 function budgetCropSupply() { return winterCrops().reduce((s,c) => s + netDM(c), 0); }
 function allCropGrownDM()   { return yearCrop().reduce((s,c)  => s + effectiveGrossDM(c), 0); }
 function anyActuals()       { return yearCrop().some(c => hasActual(c)); }
-function suppSupply()    { return yearSupps().reduce((s,x) => s + n(x.kgDM), 0); }
+// Supplement kgDM = stack / take-off figure; wastage % = feed-out loss. Supply uses net (fed) DM;
+// cost stays on the stack figure (same rule as crops: $/kgDM is on grown, wastage is feed-budget only).
+function suppNetDM(x)    { return n(x.kgDM) * (1 - n(x.wastage) / 100); }
+function suppSupply()    { return yearSupps().reduce((s,x) => s + suppNetDM(x), 0); }
 // Pasture: total = ha × (opening − residual + Σ growth×days) less wastage, or directKgDM as entered
 const PASTURE_DAYS = { gMay:15, gJun:30, gJul:31, gAug:31, gSep:15 }; // 15 May – 15 Sep, 122 days
 function pastureGrowthHa(p) { return Object.keys(PASTURE_DAYS).reduce((s,k) => s + n(p[k])*PASTURE_DAYS[k], 0); }
@@ -1774,6 +1777,8 @@ function renderFeed() {
       <td><input value="${x.name||''}" onchange="updateSupp('${x.id}','name',this.value)" placeholder="Stack / source name"></td>
       <td><select onchange="updateSupp('${x.id}','type',this.value)">${suppOpts.replace(`>${x.type||'Silage'}<`,` selected>${x.type||'Silage'}<`)}</select></td>
       <td><input class="num" type="number" value="${x.kgDM||''}" onchange="updateSupp('${x.id}','kgDM',this.value)" style="width:90px"></td>
+      <td><input class="num" type="number" min="0" max="100" value="${n(x.wastage)}" onchange="updateSupp('${x.id}','wastage',this.value)" style="width:55px"></td>
+      <td style="text-align:right" id="xr-net-${x.id}">${fmtDM(suppNetDM(x))}</td>
       <td><input class="num" type="number" step="0.001" value="${x.costPerKgDM||''}" onchange="updateSupp('${x.id}','costPerKgDM',this.value)" style="width:80px" placeholder="$/kgDM"></td>
       <td style="text-align:right;font-weight:600" id="xr-cost-${x.id}">${fmt$(cost)}</td>
       <td><button class="del-btn" onclick="deleteSupp('${x.id}')">x</button></td>
@@ -1861,10 +1866,10 @@ function renderFeed() {
         <div class="section-title" style="font-size:14px;">Supply from Supplements / Silage</div>
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Name</th><th>Type</th><th style="text-align:right">kgDM</th><th style="text-align:right">$/kgDM</th><th style="text-align:right">Cost</th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th>Type</th><th style="text-align:right">kgDM (stack)</th><th style="text-align:right">Waste %</th><th style="text-align:right">Net kgDM</th><th style="text-align:right">$/kgDM</th><th style="text-align:right">Cost</th><th></th></tr></thead>
             <tbody>
-              ${suppRows || '<tr><td colspan="6" style="color:var(--muted);padding:12px">No supplements entered</td></tr>'}
-              <tr class="total-row"><td colspan="2">Total supplements</td><td style="text-align:right" id="fb-supp-tot">${fmtDM(sSup)}</td><td></td><td style="text-align:right" id="fb-supp-cost">${fmt$(totalSuppCost())}</td><td></td></tr>
+              ${suppRows || '<tr><td colspan="8" style="color:var(--muted);padding:12px">No supplements entered</td></tr>'}
+              <tr class="total-row"><td colspan="2">Total supplements</td><td style="text-align:right" id="fb-supp-gross">${fmtDM(yearSupps().reduce((s,x) => s + n(x.kgDM), 0))}</td><td></td><td style="text-align:right" id="fb-supp-tot">${fmtDM(sSup)}</td><td></td><td style="text-align:right" id="fb-supp-cost">${fmt$(totalSuppCost())}</td><td></td></tr>
             </tbody>
           </table>
           <div class="add-row"><button onclick="addSupp()">+ Add supplement / silage stack</button></div>
@@ -1909,7 +1914,7 @@ function renderFeed() {
 }
 
 function addSupp() {
-  const x = { id: uid(), year: activeYear, name:'', type:'Silage', kgDM:'', costPerKgDM: 0.18, notes:'' };
+  const x = { id: uid(), year: activeYear, name:'', type:'Silage', kgDM:'', costPerKgDM: 0.18, notes:'', wastage: 0 };
   supplements.push(x);
   save();
   renderFeed();
@@ -1924,6 +1929,8 @@ function updateSupp(id, field, val) {
   save();
   const cell = document.getElementById('xr-cost-' + id);
   if (cell) cell.textContent = fmt$(n(x.kgDM) * n(x.costPerKgDM));
+  const net = document.getElementById('xr-net-' + id);
+  if (net) net.textContent = fmtDM(suppNetDM(x));
   refreshFeedTotals();
 }
 
@@ -1943,6 +1950,7 @@ function refreshFeedTotals() {
   set('fb-pct', `Supply covers ${pct}% of demand`);
   set('fb-sur-label', sur >= 0 ? 'SURPLUS' : 'DEFICIT');
   set('fb-supp-tot', fmtDM(sSup));
+  set('fb-supp-gross', fmtDM(yearSupps().reduce((s,x) => s + n(x.kgDM), 0)));
   set('fb-supp-cost', fmt$(totalSuppCost()));
   const bar = document.getElementById('fb-bar-fill');
   if (bar) { bar.style.width = pct + '%'; bar.className = 'fb-bar-fill ' + (pct >= 100 ? '' : 'over'); }
@@ -2304,7 +2312,7 @@ function renderHistory() {
     const ha        = cp.reduce((s,c) => s+n(c.ha), 0);
     const budCropDM = wc.reduce((s,c) => s+netDM(c), 0);
     const actCropDM = wc.some(c => hasActual(c)) ? wc.reduce((s,c) => s+effectiveNetDM(c), 0) : null;
-    const sSup      = su.reduce((s,x) => s+n(x.kgDM), 0) + pa.reduce((s,p) => s+pastureRowDM(p), 0);
+    const sSup      = su.reduce((s,x) => s+suppNetDM(x), 0) + pa.reduce((s,p) => s+pastureRowDM(p), 0);
     const budSupply = budCropDM + sSup;
     const actSupply = actCropDM !== null ? actCropDM + sSup : null;
     const supply    = actSupply !== null ? actSupply : budSupply;
@@ -3356,7 +3364,7 @@ function rptFeed() {
   const byType = {};
   winterCrops().forEach(c => { byType[c.crop] = (byType[c.crop] || 0) + effectiveNetDM(c); });
   const cropRows = Object.entries(byType).map(([crop, dm]) => `<tr><td>${crop} (crop)</td><td class="rpt-r">${fmtDM(dm)}</td></tr>`).join('');
-  const suppRows = yearSupps().map(x => `<tr><td>${x.name||x.type||'Supplement'}</td><td class="rpt-r">${fmtDM(n(x.kgDM))}</td></tr>`).join('');
+  const suppRows = yearSupps().map(x => `<tr><td>${x.name||x.type||'Supplement'}${n(x.wastage) ? ` (less ${n(x.wastage)}% feed-out)` : ''}</td><td class="rpt-r">${fmtDM(suppNetDM(x))}</td></tr>`).join('');
   const pastRows = yearPasture().map(p => `<tr><td>${p.name||'Pasture block'}</td><td class="rpt-r">${fmtDM(pastureRowDM(p))}</td></tr>`).join('');
   const sup = totalSupply(), dem = totalDemand(), sur = surplus();
   return `
