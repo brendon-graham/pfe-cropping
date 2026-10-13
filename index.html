@@ -346,7 +346,7 @@ td input.num { text-align: right; }
 
 <script>
 // -- CONSTANTS --
-const APP_VER = '3.1.2';
+const APP_VER = '3.2.2';
 const NS = 'crop2_';
 const YEAR = '2026/27';
 const YEAR_PAT = /^\d{4}\/\d{2}$/;
@@ -1574,7 +1574,7 @@ function cropRow(c) {
     <td><input value="${c.paddock||''}" oninput="updateCropDraft('${c.id}','paddock',this.value)" onchange="updateCrop('${c.id}','paddock',this.value)" placeholder="Paddock name"${dis}></td>
     <td><select onchange="cropTypeChanged('${c.id}',this.value)"${dis}>${opts}</select></td>
     <td><input class="num" type="number" value="${c.ha||''}" onchange="updateCropCalc('${c.id}','ha',this.value)" style="width:60px"${dis}></td>
-    <td><input value="${c.drillDate||''}" oninput="updateCropDraft('${c.id}','drillDate',this.value)" onchange="updateCrop('${c.id}','drillDate',this.value)" placeholder="dd/mm/yy" style="width:80px"${dis}></td>
+    <td><input type="date" value="${dateKey(parseAppDate(c.drillDate))}" onchange="updateCrop('${c.id}','drillDate',this.value?this.value+'T12:00:00.000Z':'')" style="width:135px"${dis}></td>
     <td><select onchange="updateCrop('${c.id}','winterUse',this.value);renderCrop()" style="width:105px;${countsWinter(c)?'':'color:var(--warn);font-weight:600'}"${dis}>${WINTER_USES.map(u => `<option${(c.winterUse||'Winter feed')===u?' selected':''}>${u}</option>`).join('')}</select></td>
     <td><input class="num" type="number" value="${c.yieldKgHA||''}" onchange="updateCropCalc('${c.id}','yieldKgHA',this.value)" style="width:80px"${dis}></td>
     <td><input class="num" type="number" value="${act !== null ? act : ''}" onchange="updateActualYield('${c.id}',this.value)" placeholder="actual" style="width:80px;border-color:${act!==null?'var(--lime)':'var(--border)'}"${dis}></td>
